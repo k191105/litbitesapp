@@ -46,8 +46,8 @@ class BrowseHubPage extends StatelessWidget {
             icon: Icons.sell_outlined,
             title: 'Browse by Tags',
             description: 'Filter quotes by specific tags.',
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              final selectedTags = await Navigator.push<Set<String>>(
                 context,
                 MaterialPageRoute(
                   builder: (context) => BrowsePage(
@@ -57,6 +57,9 @@ class BrowseHubPage extends StatelessWidget {
                   ),
                 ),
               );
+              if (selectedTags != null && context.mounted) {
+                Navigator.pop(context, selectedTags);
+              }
             },
             isDarkMode: isDarkMode,
           ),

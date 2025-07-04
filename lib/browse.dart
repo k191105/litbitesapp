@@ -173,17 +173,17 @@ class BrowsePageState extends State<BrowsePage> {
                           tag,
                           style: TextStyle(
                             fontSize: 12,
-                            color: _isDarkMode ? Colors.white : Colors.black,
+                            color: _isDarkMode ? Colors.black : Colors.black,
                             fontFamily: 'Georgia',
                           ),
                         ),
                         backgroundColor: _isDarkMode
-                            ? Colors.white.withOpacity(0.2)
+                            ? Colors.white.withOpacity(0.7)
                             : Colors.black.withOpacity(0.1),
                         deleteIcon: Icon(
                           Icons.close,
                           size: 16,
-                          color: _isDarkMode ? Colors.white : Colors.black,
+                          color: _isDarkMode ? Colors.black : Colors.black,
                         ),
                         onDeleted: () => _toggleTag(tag),
                       );
@@ -233,6 +233,9 @@ class BrowsePageState extends State<BrowsePage> {
                     ? Colors.white.withOpacity(0.9)
                     : Colors.black.withOpacity(0.9),
                 foregroundColor: _isDarkMode ? Colors.black : Colors.white,
+                disabledBackgroundColor: _isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
