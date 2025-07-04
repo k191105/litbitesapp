@@ -16,6 +16,8 @@ class Quote {
   final String? sourceBlurb;
   final String? tone;
   final String? period;
+  final double? sentimentScore;
+  final int? intensity;
 
   Quote({
     required this.id,
@@ -35,6 +37,8 @@ class Quote {
     this.sourceBlurb,
     this.tone,
     this.period,
+    this.sentimentScore,
+    this.intensity,
   });
 
   factory Quote.fromJson(Map<String, dynamic> json) {
@@ -58,6 +62,8 @@ class Quote {
       sourceBlurb: gptData?['source_blurb'],
       tone: gptData?['tone']?['label'],
       period: gptData?['period'],
+      sentimentScore: (gptData?['sentiment_score'] as num?)?.toDouble(),
+      intensity: (gptData?['tone']?['intensity'] as num?)?.toInt(),
     );
   }
 

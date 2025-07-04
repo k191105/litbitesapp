@@ -28,11 +28,13 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   int _quizzesCompleted = 0;
   double _averageScore = 0.0;
+  bool _personalizedSuggestions = true;
 
   @override
   void initState() {
     super.initState();
     _loadProfileStats();
+    _loadSettings();
   }
 
   Future<void> _loadProfileStats() async {
@@ -46,6 +48,22 @@ class _ProfilePageState extends State<ProfilePage> {
       _averageScore = totalAnswered > 0
           ? (totalCorrect / totalAnswered) * 100
           : 0.0;
+    });
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _personalizedSuggestions =
+          prefs.getBool('personalizedSuggestions') ?? true;
+    });
+  }
+
+  Future<void> _updatePersonalizedSuggestions(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('personalizedSuggestions', value);
+    setState(() {
+      _personalizedSuggestions = value;
     });
   }
 
@@ -113,6 +131,34 @@ class _ProfilePageState extends State<ProfilePage> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          SwitchListTile(
+            title: Text(
+              'Personalized Suggestions',
+              style: TextStyle(
+                fontFamily: 'Georgia',
+                fontSize: 21,
+                foreground: Paint()
+                  ..shader = const LinearGradient(
+                    colors: [Colors.purpleAccent, Colors.blueAccent],
+                  ).createShader(Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
+              ),
+            ),
+            subtitle: Text(
+              'See Quotes picked for you based on your preferences. Suggestions improve as you like more quotes.',
+              style: TextStyle(
+                fontFamily: 'Georgia',
+                color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            value: _personalizedSuggestions,
+            onChanged: (bool value) {
+              _updatePersonalizedSuggestions(value);
+            },
+            activeColor: Colors.blueAccent,
+          ),
+          const SizedBox(height: 12),
+          const Divider(thickness: 1.2),
+          const SizedBox(height: 16),
           FadeInUp(
             duration: const Duration(milliseconds: 400),
             child: Row(
@@ -137,7 +183,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (_quizzesCompleted > 0)
             FadeInUp(
               duration: const Duration(milliseconds: 400),
@@ -165,7 +211,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (topFavoriteThemes.isNotEmpty)
             FadeInUp(
               duration: const Duration(milliseconds: 400),
@@ -177,7 +223,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icons.palette_outlined,
               ),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (topAuthors.isNotEmpty)
             FadeInUp(
               duration: const Duration(milliseconds: 400),
@@ -189,7 +235,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icons.edit_outlined,
               ),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (topSeenThemes.isNotEmpty)
             FadeInUp(
               duration: const Duration(milliseconds: 400),
@@ -315,7 +361,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           ...items.map(
             (item) => Padding(
               padding: const EdgeInsets.only(bottom: 8.0),

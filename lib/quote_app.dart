@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -7,11 +9,15 @@ import 'package:share_plus/share_plus.dart';
 import 'quote.dart';
 import 'quote_service.dart';
 import 'browse.dart';
+import 'browse_hub.dart';
 import 'about.dart';
 import 'learn_hub.dart';
 import 'profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'srs_service.dart';
+import 'package:flutter/services.dart';
+import 'package:quotes_app/recommendation_service.dart';
+import 'package:flutter/rendering.dart';
 
 class QuoteApp extends StatefulWidget {
   const QuoteApp({super.key});
@@ -20,17 +26,22 @@ class QuoteApp extends StatefulWidget {
   QuoteAppState createState() => QuoteAppState();
 }
 
-class QuoteAppState extends State<QuoteApp> {
+class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   int _currentIndex = 0;
   late PageController _pageController;
   final SRSService _srsService = SRSService();
+  late ScrollController _detailsScrollController;
+  late AnimationController _heartAnimationController;
+  late Animation<double> _heartAnimation;
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
   final List<Quote> _favoriteQuotes = [];
   final Set<String> _selectedTags = <String>{};
   final Set<String> _seenQuoteIds = <String>{};
+  final Map<String, int> _likeCounts = <String, int>{};
   bool _isFavoritesMode = false;
+  bool _isPersonalizedMode = true;
 
   bool _isDarkMode = false;
   bool _isSecondPageVisible = false;
@@ -40,12 +51,33 @@ class QuoteAppState extends State<QuoteApp> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _detailsScrollController = ScrollController();
+    _heartAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _heartAnimation = CurvedAnimation(
+      parent: _heartAnimationController,
+      curve: Curves.elasticOut,
+    );
+
+    _heartAnimationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _heartAnimationController.reverse();
+          }
+        });
+      }
+    });
     _loadQuotes();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _detailsScrollController.dispose();
+    _heartAnimationController.dispose();
     super.dispose();
   }
 
@@ -54,6 +86,15 @@ class QuoteAppState extends State<QuoteApp> {
       final quotes = await QuoteService.loadQuotes();
       final prefs = await SharedPreferences.getInstance();
       final favoriteIds = prefs.getStringList('favoriteQuoteIds') ?? [];
+      final likeCountsJson = prefs.getString('likeCounts');
+      if (likeCountsJson != null) {
+        final decodedMap = json.decode(likeCountsJson) as Map<String, dynamic>;
+        _likeCounts.addAll(
+          decodedMap.map((key, value) => MapEntry(key, value as int)),
+        );
+      }
+
+      _isPersonalizedMode = prefs.getBool('personalizedSuggestions') ?? true;
 
       setState(() {
         _allQuotes = quotes;
@@ -63,6 +104,7 @@ class QuoteAppState extends State<QuoteApp> {
         );
         _isLoading = false;
       });
+      _applyFilters();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -82,6 +124,9 @@ class QuoteAppState extends State<QuoteApp> {
   }
 
   void _showSecondPage() {
+    if (_detailsScrollController.hasClients) {
+      _detailsScrollController.jumpTo(0);
+    }
     setState(() {
       _isSecondPageVisible = true;
     });
@@ -113,15 +158,21 @@ class QuoteAppState extends State<QuoteApp> {
 
   void _toggleFavorite() {
     if (_quotes.isEmpty) return;
+    HapticFeedback.lightImpact();
+    final currentQuote = _quotes[_currentIndex];
+
+    _heartAnimationController.forward(from: 0.0);
+
     setState(() {
-      final currentQuote = _quotes[_currentIndex];
-      if (_favoriteQuotes.contains(currentQuote)) {
-        _favoriteQuotes.remove(currentQuote);
-        _srsService.removeQuote(currentQuote.id);
-      } else {
+      if (!_favoriteQuotes.contains(currentQuote)) {
         _favoriteQuotes.add(currentQuote);
         _srsService.addQuote(currentQuote.id);
       }
+      _likeCounts.update(
+        currentQuote.id,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
       _saveFavorites();
     });
   }
@@ -130,6 +181,27 @@ class QuoteAppState extends State<QuoteApp> {
     final prefs = await SharedPreferences.getInstance();
     final favoriteIds = _favoriteQuotes.map((q) => q.id).toList();
     await prefs.setStringList('favoriteQuoteIds', favoriteIds);
+    await prefs.setString('likeCounts', json.encode(_likeCounts));
+  }
+
+  void _toggleFavoriteFromBar() {
+    if (_quotes.isEmpty) return;
+    HapticFeedback.lightImpact();
+    final currentQuote = _quotes[_currentIndex];
+
+    setState(() {
+      if (_favoriteQuotes.contains(currentQuote)) {
+        _favoriteQuotes.remove(currentQuote);
+        _likeCounts.remove(currentQuote.id);
+        _srsService.removeQuote(currentQuote.id);
+      } else {
+        _favoriteQuotes.add(currentQuote);
+        _likeCounts[currentQuote.id] = 1;
+        _srsService.addQuote(currentQuote.id);
+        _heartAnimationController.forward(from: 0.0);
+      }
+      _saveFavorites();
+    });
   }
 
   double _getFontSize(String text) {
@@ -148,93 +220,114 @@ class QuoteAppState extends State<QuoteApp> {
   }
 
   Widget _buildQuoteCard(Quote quote) {
-    return SizedBox(
-      height: double.infinity,
-      child: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 32.0,
-                  bottom: 10.0,
-                  top: 32.0,
-                  right: 32.0,
-                ),
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Text(
-                    quote.text,
-                    style: TextStyle(
-                      fontSize: _getFontSize(quote.text),
-                      fontWeight: FontWeight.w500,
-                      fontFamily: "Georgia",
-                      color: _isDarkMode ? Colors.white : Colors.black,
-                      height: 1.4,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20.0),
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 32.0,
-                  right: 32.0,
-                  top: 10.0,
-                ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '— ${quote.authorInfo}',
-                    style: TextStyle(
-                      fontSize: _getSourceFontSize(quote.authorInfo),
-                      fontWeight: FontWeight.w300,
-                      color: const Color.fromARGB(255, 166, 165, 165),
-                      fontFamily: "Georgia",
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ),
-              if (quote.displaySource.isNotEmpty) ...[
-                const SizedBox(height: 8.0),
-                Padding(
-                  padding: const EdgeInsets.only(left: 32.0, right: 32.0),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      quote.displaySource,
-                      style: TextStyle(
-                        fontSize: _getSourceFontSize(quote.displaySource) - 2,
-                        fontWeight: FontWeight.w300,
-                        color: const Color.fromARGB(255, 140, 140, 140),
-                        fontFamily: "Georgia",
-                        fontStyle: FontStyle.italic,
+    final likeCount = _likeCounts[quote.id] ?? 0;
+    return GestureDetector(
+      onDoubleTap: _toggleFavorite,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            height: double.infinity,
+            child: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: 32.0,
+                        bottom: 10.0,
+                        top: 32.0,
+                        right: 32.0,
                       ),
-                      textAlign: TextAlign.right,
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Text(
+                          quote.text,
+                          style: TextStyle(
+                            fontSize: _getFontSize(quote.text),
+                            fontWeight: FontWeight.w500,
+                            fontFamily: "Georgia",
+                            color: _isDarkMode ? Colors.white : Colors.black,
+                            height: 1.4,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 20.0),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: 32.0,
+                        right: 32.0,
+                        top: 10.0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '— ${quote.authorInfo}',
+                          style: TextStyle(
+                            fontSize: _getSourceFontSize(quote.authorInfo),
+                            fontWeight: FontWeight.w300,
+                            color: const Color.fromARGB(255, 166, 165, 165),
+                            fontFamily: "Georgia",
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ),
+                    if (quote.displaySource.isNotEmpty) ...[
+                      const SizedBox(height: 8.0),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 32.0, right: 32.0),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            quote.displaySource,
+                            style: TextStyle(
+                              fontSize:
+                                  _getSourceFontSize(quote.displaySource) - 2,
+                              fontWeight: FontWeight.w300,
+                              color: const Color.fromARGB(255, 140, 140, 140),
+                              fontFamily: "Georgia",
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    // Tags as chips
+                    if (quote.tags.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8.0,
+                          runSpacing: 8.0,
+                          children: quote.tags
+                              .map((tag) => _buildTagChip(tag))
+                              .toList(),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 24),
-              // Tags as chips
-              if (quote.tags.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8.0,
-                    runSpacing: 8.0,
-                    children: quote.tags
-                        .map((tag) => _buildTagChip(tag))
-                        .toList(),
-                  ),
-                ),
-            ],
+              ),
+            ),
           ),
-        ),
+          FadeTransition(
+            opacity: _heartAnimation,
+            child: ScaleTransition(
+              scale: _heartAnimation,
+              child: Icon(
+                Icons.favorite,
+                size: 120,
+                color: Colors.red.withOpacity(0.8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -253,6 +346,7 @@ class QuoteAppState extends State<QuoteApp> {
 
   Widget _buildDetailsCard(Quote quote) {
     return SingleChildScrollView(
+      controller: _detailsScrollController,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
         child: Column(
@@ -468,7 +562,14 @@ class QuoteAppState extends State<QuoteApp> {
       }
 
       List<Quote> filteredQuotes;
-      if (_selectedTags.isEmpty) {
+      if (_isPersonalizedMode && _selectedTags.isEmpty && !_isFavoritesMode) {
+        final recommendationService = RecommendationService(
+          allQuotes: _allQuotes,
+          favoriteQuotes: _favoriteQuotes,
+          likeCounts: _likeCounts,
+        );
+        filteredQuotes = recommendationService.getRecommendations();
+      } else if (_selectedTags.isEmpty) {
         filteredQuotes = List.from(baseQuotes);
       } else {
         filteredQuotes = baseQuotes.where((quote) {
@@ -478,7 +579,7 @@ class QuoteAppState extends State<QuoteApp> {
         }).toList();
       }
 
-      if (!_isFavoritesMode) {
+      if (!_isFavoritesMode && !_isPersonalizedMode) {
         filteredQuotes.shuffle();
       }
 
@@ -486,6 +587,10 @@ class QuoteAppState extends State<QuoteApp> {
       _currentIndex = 0;
       _isSecondPageVisible = false;
     });
+
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
   }
 
   Future<void> _shareQuoteAsImage() async {
@@ -505,8 +610,8 @@ class QuoteAppState extends State<QuoteApp> {
     await Share.shareXFiles([XFile(imagePath.path)]);
   }
 
-  void _navigateToProfile() {
-    Navigator.push(
+  void _navigateToProfile() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ProfilePage(
@@ -520,6 +625,16 @@ class QuoteAppState extends State<QuoteApp> {
         ),
       ),
     );
+
+    final prefs = await SharedPreferences.getInstance();
+    final newPersonalizedMode =
+        prefs.getBool('personalizedSuggestions') ?? true;
+    if (newPersonalizedMode != _isPersonalizedMode) {
+      setState(() {
+        _isPersonalizedMode = newPersonalizedMode;
+      });
+      _applyFilters();
+    }
   }
 
   void _navigateToLearn() {
@@ -549,7 +664,7 @@ class QuoteAppState extends State<QuoteApp> {
     final result = await Navigator.push<Set<String>>(
       context,
       MaterialPageRoute(
-        builder: (context) => BrowsePage(
+        builder: (context) => BrowseHubPage(
           allQuotes: _allQuotes,
           initialSelectedTags: _selectedTags,
           isDarkMode: _isDarkMode,
@@ -598,6 +713,15 @@ class QuoteAppState extends State<QuoteApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Sync the system status bar with our app bar background to avoid the lavender tint on iOS
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: _isDarkMode
+            ? Brightness.light
+            : Brightness.dark,
+      ),
+    );
     if (_isLoading) {
       return Scaffold(
         backgroundColor: _isDarkMode
@@ -630,6 +754,7 @@ class QuoteAppState extends State<QuoteApp> {
               ? Colors.black
               : const Color.fromARGB(255, 240, 234, 225),
           elevation: 0,
+          scrolledUnderElevation: 0.0,
           iconTheme: IconThemeData(
             color: _isDarkMode ? Colors.white : Colors.black,
           ),
@@ -659,36 +784,33 @@ class QuoteAppState extends State<QuoteApp> {
       body: Column(
         children: [
           // Main content area
-          Visibility(
-            visible: !_isSecondPageVisible,
-            child: Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                scrollDirection: Axis.vertical,
-                onPageChanged: (index) {
-                  if (_quotes.isNotEmpty) {
+          Expanded(
+            child: IndexedStack(
+              index: _isSecondPageVisible ? 1 : 0,
+              children: <Widget>[
+                PageView.builder(
+                  controller: _pageController,
+                  scrollDirection: Axis.vertical,
+                  onPageChanged: (index) {
+                    if (_quotes.isNotEmpty) {
+                      final quoteIndex = index % _quotes.length;
+                      setState(() {
+                        _currentIndex = quoteIndex;
+                        _seenQuoteIds.add(_quotes[quoteIndex].id);
+                      });
+                    }
+                  },
+                  itemBuilder: (context, index) {
+                    if (_quotes.isEmpty) {
+                      return Container(); // Should not happen if handled properly
+                    }
                     final quoteIndex = index % _quotes.length;
-                    setState(() {
-                      _currentIndex = quoteIndex;
-                      _seenQuoteIds.add(_quotes[quoteIndex].id);
-                    });
-                  }
-                },
-                itemBuilder: (context, index) {
-                  if (_quotes.isEmpty) {
-                    return Container(); // Should not happen if handled properly
-                  }
-                  final quoteIndex = index % _quotes.length;
-                  return _buildQuoteCard(_quotes[quoteIndex]);
-                },
-              ),
+                    return _buildQuoteCard(_quotes[quoteIndex]);
+                  },
+                ),
+                _buildDetailsCard(_quotes[_currentIndex]),
+              ],
             ),
-          ),
-
-          // Details page
-          Visibility(
-            visible: _isSecondPageVisible,
-            child: Expanded(child: _buildDetailsCard(_quotes[_currentIndex])),
           ),
 
           // Bottom navigation bar
@@ -726,14 +848,45 @@ class QuoteAppState extends State<QuoteApp> {
                     },
                   ),
                   IconButton(
-                    icon: _favoriteQuotes.contains(_quotes[_currentIndex])
-                        ? const Icon(Icons.favorite, color: Colors.red)
-                        : const Icon(Icons.favorite_border),
-                    color: _favoriteQuotes.contains(_quotes[_currentIndex])
-                        ? Colors.red
-                        : Colors.black,
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(
+                          _favoriteQuotes.contains(_quotes[_currentIndex])
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color:
+                              _favoriteQuotes.contains(_quotes[_currentIndex])
+                              ? Colors.red
+                              : Colors.black,
+                        ),
+                        if ((_likeCounts[_quotes[_currentIndex].id] ?? 0) > 1)
+                          Positioned(
+                            right: -8,
+                            top: -4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'x${_likeCounts[_quotes[_currentIndex].id]}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     iconSize: 24.0,
-                    onPressed: _toggleFavorite,
+                    onPressed: _toggleFavoriteFromBar,
                   ),
                   IconButton(
                     icon: const Icon(Icons.arrow_upward_outlined),
@@ -768,6 +921,7 @@ class QuoteAppState extends State<QuoteApp> {
             ? Colors.black
             : const Color.fromARGB(255, 240, 234, 225),
         elevation: 0,
+        scrolledUnderElevation: 0.0,
         iconTheme: IconThemeData(
           color: _isDarkMode ? Colors.white : Colors.black,
         ),
@@ -866,7 +1020,7 @@ class QuoteAppState extends State<QuoteApp> {
                 _clearFilter();
               },
             ),
-          const Spacer(), // Pushes the following items to the bottom
+
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
