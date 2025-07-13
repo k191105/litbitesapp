@@ -299,18 +299,29 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                     ],
                     const SizedBox(height: 24),
                     // Tags as chips
-                    if (quote.tags.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8.0,
-                          runSpacing: 8.0,
-                          children: quote.tags
-                              .map((tag) => _buildTagChip(tag))
-                              .toList(),
+                    OutlinedButton(
+                      onPressed: _showSecondPage,
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30.0),
+                        ),
+                        side: BorderSide(
+                          width: 0.5,
+                          color: _isDarkMode ? Colors.white54 : Colors.black54,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24.0,
+                          vertical: 12.0,
                         ),
                       ),
+                      child: Text(
+                        'Read more »',
+                        style: TextStyle(
+                          fontFamily: "Georgia",
+                          color: _isDarkMode ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -464,11 +475,17 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildTagChip(String tag) {
+  Widget _buildTagChip(String tag, {void Function(String)? onTap}) {
     final bool isSelected = _selectedTags.contains(tag);
 
     return GestureDetector(
-      onTap: () => _toggleTagFilter(tag),
+      onTap: () {
+        if (onTap != null) {
+          onTap(tag);
+        } else {
+          _toggleTagFilter(tag);
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
         decoration: BoxDecoration(
@@ -685,6 +702,88 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     );
   }
 
+  void _showTagsPopup(BuildContext anchorContext) {
+    final quote = _quotes[_currentIndex];
+    if (quote.tags.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This quote has no tags.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Tags',
+      barrierColor: Colors.black.withOpacity(0.1),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, anim1, anim2) {
+        return Stack(
+          children: [
+            Positioned(
+              right: 20,
+              bottom: 105,
+              child: Material(
+                type: MaterialType.transparency,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16.0,
+                    horizontal: 20.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isDarkMode
+                        ? const Color.fromARGB(220, 45, 45, 45)
+                        : const Color.fromARGB(240, 255, 255, 255),
+                    borderRadius: BorderRadius.circular(20.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        spreadRadius: 2,
+                        blurRadius: 15,
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      children: quote.tags.map((tag) {
+                        return _buildTagChip(
+                          tag,
+                          onTap: (selectedTag) {
+                            Navigator.pop(context);
+                            _toggleTagFilter(selectedTag);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic),
+          alignment: Alignment.bottomRight,
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: anim1, curve: Curves.easeOut),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTagsDetailSection(String title, List<String> tags) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -897,11 +996,15 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                       _previousQuote();
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.info_outline),
-                    iconSize: 24.0,
-                    color: _isSecondPageVisible ? Colors.grey : Colors.black,
-                    onPressed: _isSecondPageVisible ? null : _showSecondPage,
+                  Builder(
+                    builder: (context) {
+                      return IconButton(
+                        icon: const Icon(Icons.sell_outlined),
+                        iconSize: 24.0,
+                        color: Colors.black,
+                        onPressed: () => _showTagsPopup(context),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -911,7 +1014,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       ),
       appBar: AppBar(
         title: Text(
-          '',
+          'Literature Bites',
           style: TextStyle(
             color: _isDarkMode ? Colors.white : Colors.black,
             fontFamily: 'Georgia',
