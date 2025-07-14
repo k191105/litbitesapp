@@ -8,12 +8,14 @@ class BrowseHubPage extends StatelessWidget {
   final bool isDarkMode;
   final List<Quote> allQuotes;
   final Set<String> initialSelectedTags;
+  final Set<String> initialSelectedAuthors;
 
   const BrowseHubPage({
     super.key,
     required this.isDarkMode,
     required this.allQuotes,
     required this.initialSelectedTags,
+    required this.initialSelectedAuthors,
   });
 
   @override
@@ -58,7 +60,7 @@ class BrowseHubPage extends StatelessWidget {
                 ),
               );
               if (selectedTags != null && context.mounted) {
-                Navigator.pop(context, selectedTags);
+                Navigator.pop(context, {'tags': selectedTags});
               }
             },
             isDarkMode: isDarkMode,
@@ -69,9 +71,23 @@ class BrowseHubPage extends StatelessWidget {
             icon: Icons.person_search_outlined,
             title: 'Browse by Author',
             description: 'Find all quotes from a specific author.',
-            onTap: () {},
+            onTap: () async {
+              final selectedAuthors = await Navigator.push<Set<String>>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BrowseByAuthorPage(
+                    allQuotes: allQuotes,
+                    initialSelectedAuthors: initialSelectedAuthors,
+                    isDarkMode: isDarkMode,
+                  ),
+                ),
+              );
+              if (selectedAuthors != null && context.mounted) {
+                Navigator.pop(context, {'authors': selectedAuthors});
+              }
+            },
             isDarkMode: isDarkMode,
-            enabled: false,
+            enabled: true,
           ),
           const SizedBox(height: 16),
           _buildBrowseCard(

@@ -18,6 +18,7 @@ class Quote {
   final String? period;
   final double? sentimentScore;
   final int? intensity;
+  final int? author_score;
 
   Quote({
     required this.id,
@@ -39,6 +40,7 @@ class Quote {
     this.period,
     this.sentimentScore,
     this.intensity,
+    this.author_score,
   });
 
   factory Quote.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,7 @@ class Quote {
       period: gptData?['period'],
       sentimentScore: (gptData?['sentiment_score'] as num?)?.toDouble(),
       intensity: (gptData?['tone']?['intensity'] as num?)?.toInt(),
+      author_score: json['author_score'],
     );
   }
 

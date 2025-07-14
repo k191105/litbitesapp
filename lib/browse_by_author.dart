@@ -1,15 +1,69 @@
 import 'package:flutter/material.dart';
-import 'package:quotes_app/author_quotes_page.dart';
 import 'package:quotes_app/quote.dart';
+
+class _Author implements Comparable<_Author> {
+  final String name;
+  final int score;
+
+  const _Author({required this.name, required this.score});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _Author &&
+          runtimeType == other.runtimeType &&
+          name == other.name;
+
+  @override
+  int get hashCode => name.hashCode;
+
+  @override
+  int compareTo(_Author other) {
+    if (other.score == score) {
+      return name.compareTo(other.name);
+    }
+    return other.score.compareTo(score);
+  }
+}
+
+const List<String> _curatedAuthors = [
+  'Albert Camus',
+  'Oscar Wilde',
+  'Bertrand Russell',
+  'Friedrich Nietzsche',
+  'Jean-Paul Sartre',
+  'Fyodor Dostoevsky',
+  'Leo Tolstoy',
+  'George Orwell',
+  'Aldous Huxley',
+  'Virginia Woolf',
+  'James Joyce',
+  'William Shakespeare',
+  'Mark Twain',
+  'Ernest Hemingway',
+  'Jane Austen',
+  'Charles Dickens',
+  'Kurt Vonnegut',
+  'Philip K. Dick',
+  'Franz Kafka',
+  'Simone de Beauvoir',
+  'George Eliot', // Mary Ann Evans
+  'Hermann Hesse',
+  'Seneca',
+  'Marcus Aurelius',
+  'Epictetus',
+];
 
 class BrowseByAuthorPage extends StatefulWidget {
   final List<Quote> allQuotes;
   final bool isDarkMode;
+  final Set<String> initialSelectedAuthors;
 
   const BrowseByAuthorPage({
     super.key,
     required this.allQuotes,
     required this.isDarkMode,
+    required this.initialSelectedAuthors,
   });
 
   @override
@@ -17,27 +71,67 @@ class BrowseByAuthorPage extends StatefulWidget {
 }
 
 class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
-  late Map<String, List<Quote>> _quotesByAuthor;
-  List<String> _authors = [];
+  List<_Author> _allAuthors = [];
+  List<_Author> _recommendedAuthors = [];
+  List<_Author> _otherAuthors = [];
+  List<_Author> _filteredAuthors = [];
+  final Set<_Author> _selectedAuthors = {};
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _groupQuotesByAuthor();
-  }
-
-  void _groupQuotesByAuthor() {
-    final Map<String, List<Quote>> authorMap = {};
-    for (final quote in widget.allQuotes) {
-      final authorName = quote.authorInfo;
-      if (authorMap.containsKey(authorName)) {
-        authorMap[authorName]!.add(quote);
-      } else {
-        authorMap[authorName] = [quote];
+    final Map<String, int> authorScores = {};
+    for (var quote in widget.allQuotes) {
+      final authorName = quote.authorName;
+      final authorScore = quote.author_score ?? 0;
+      if (!authorScores.containsKey(authorName) ||
+          authorScores[authorName]! < authorScore) {
+        authorScores[authorName] = authorScore;
       }
     }
-    _quotesByAuthor = authorMap;
-    _authors = authorMap.keys.toList()..sort();
+    _allAuthors =
+        authorScores.entries
+            .map((entry) => _Author(name: entry.key, score: entry.value))
+            .toList()
+          ..sort();
+
+    _recommendedAuthors = _allAuthors
+        .where((author) => _curatedAuthors.contains(author.name))
+        .toList();
+    _otherAuthors = _allAuthors
+        .where((author) => !_curatedAuthors.contains(author.name))
+        .toList();
+
+    _recommendedAuthors.sort();
+    _otherAuthors.sort();
+
+    _filteredAuthors = _allAuthors;
+
+    _selectedAuthors.addAll(
+      _allAuthors.where(
+        (author) => widget.initialSelectedAuthors.contains(author.name),
+      ),
+    );
+
+    _searchController.addListener(() {
+      _filterAuthors();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterAuthors() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredAuthors = _allAuthors
+          .where((author) => author.name.toLowerCase().contains(query))
+          .toList();
+    });
   }
 
   @override
@@ -54,6 +148,22 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
             color: widget.isDarkMode ? Colors.white : Colors.black,
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final selectedNames = _selectedAuthors.map((a) => a.name).toSet();
+              Navigator.of(context).pop(selectedNames);
+            },
+            child: Text(
+              'Done',
+              style: TextStyle(
+                color: widget.isDarkMode ? Colors.white : Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
         backgroundColor: widget.isDarkMode
             ? Colors.black
             : const Color.fromARGB(255, 240, 234, 225),
@@ -62,42 +172,127 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
           color: widget.isDarkMode ? Colors.white : Colors.black,
         ),
       ),
-      body: ListView.builder(
-        itemCount: _authors.length,
-        itemBuilder: (context, index) {
-          final author = _authors[index];
-          final quoteCount = _quotesByAuthor[author]!.length;
-          return ListTile(
-            title: Text(
-              author,
-              style: TextStyle(
-                fontFamily: 'Georgia',
-                fontWeight: FontWeight.w600,
-                color: widget.isDarkMode ? Colors.white : Colors.black,
-              ),
-            ),
-            subtitle: Text(
-              '$quoteCount quote${quoteCount > 1 ? 's' : ''}',
-              style: TextStyle(
-                fontFamily: 'Georgia',
-                color: widget.isDarkMode ? Colors.white70 : Colors.black87,
-              ),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthorQuotesPage(
-                    authorName: author,
-                    quotes: _quotesByAuthor[author]!,
-                    isDarkMode: widget.isDarkMode,
-                  ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search for an author...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: (widget.isDarkMode ? Colors.white : Colors.black)
+                    .withOpacity(0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
                 ),
-              );
-            },
-          );
-        },
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _searchController.text.isNotEmpty
+                  ? _buildFilteredAuthorList()
+                  : _buildCategorizedAuthorList(),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildFilteredAuthorList() {
+    return ListView.builder(
+      itemCount: _filteredAuthors.length,
+      itemBuilder: (context, index) {
+        return _buildAuthorTile(_filteredAuthors[index]);
+      },
+    );
+  }
+
+  Widget _buildCategorizedAuthorList() {
+    final itemCount =
+        _recommendedAuthors.length +
+        _otherAuthors.length +
+        (_otherAuthors.isNotEmpty ? 2 : 1);
+
+    return ListView.builder(
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        // Recommended Header
+        if (index == 0) {
+          return _buildSectionHeader('Recommended Authors');
+        }
+        // Recommended List
+        if (index <= _recommendedAuthors.length) {
+          final author = _recommendedAuthors[index - 1];
+          return _buildAuthorTile(author);
+        }
+        // All Authors Header
+        if (_otherAuthors.isNotEmpty &&
+            index == _recommendedAuthors.length + 1) {
+          return _buildSectionHeader('All Authors');
+        }
+        // All Authors List
+        final author = _otherAuthors[index - _recommendedAuthors.length - 2];
+        return _buildAuthorTile(author);
+      },
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontFamily: 'EBGaramond',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: (widget.isDarkMode ? Colors.white : Colors.black).withOpacity(
+            0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuthorTile(_Author author) {
+    final isSelected = _selectedAuthors.contains(author);
+    return ListTile(
+      title: Text(
+        author.name,
+        style: TextStyle(
+          fontFamily: 'EBGaramond',
+          color: widget.isDarkMode ? Colors.white : Colors.black,
+        ),
+      ),
+      trailing: Checkbox(
+        value: isSelected,
+        onChanged: (bool? value) {
+          setState(() {
+            if (value == true) {
+              _selectedAuthors.add(author);
+            } else {
+              _selectedAuthors.remove(author);
+            }
+          });
+        },
+        activeColor: widget.isDarkMode ? Colors.white : Colors.black,
+        checkColor: widget.isDarkMode ? Colors.black : Colors.white,
+      ),
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            _selectedAuthors.remove(author);
+          } else {
+            _selectedAuthors.add(author);
+          }
+        });
+      },
     );
   }
 }

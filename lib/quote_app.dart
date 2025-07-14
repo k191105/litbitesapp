@@ -18,6 +18,7 @@ import 'srs_service.dart';
 import 'package:flutter/services.dart';
 import 'package:quotes_app/recommendation_service.dart';
 import 'package:flutter/rendering.dart';
+import 'onboarding_page.dart';
 
 class QuoteApp extends StatefulWidget {
   const QuoteApp({super.key});
@@ -40,6 +41,9 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   final Set<String> _selectedTags = <String>{};
   final Set<String> _seenQuoteIds = <String>{};
   final Map<String, int> _likeCounts = <String, int>{};
+  final Set<String> _preferredAuthors = <String>{};
+  final Set<String> _preferredTags = <String>{};
+  final Set<String> _selectedAuthors = <String>{};
   bool _isFavoritesMode = false;
   bool _isPersonalizedMode = true;
 
@@ -105,6 +109,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         _isLoading = false;
       });
       _applyFilters();
+      await _showOnboardingIfNeeded();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -114,6 +119,36 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading quotes: $e')));
       }
+    }
+  }
+
+  Future<void> _showOnboardingIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasOnboarded = prefs.getBool('hasOnboarded') ?? false;
+
+    if (!hasOnboarded && mounted) {
+      final result = await Navigator.of(context).push<OnboardingResult>(
+        MaterialPageRoute(
+          builder: (context) => OnboardingPage(allQuotes: _allQuotes),
+          fullscreenDialog: true,
+        ),
+      );
+
+      if (result != null) {
+        setState(() {
+          if (result.selectedTags.isNotEmpty) {
+            _preferredTags.addAll(result.selectedTags);
+          }
+          if (result.selectedAuthors.isNotEmpty) {
+            _preferredAuthors.addAll(result.selectedAuthors);
+          }
+        });
+        // Re-apply filters to kick-start recommendations with new preferences
+        _applyFilters();
+      }
+
+      // After onboarding is complete, set the flag
+      await prefs.setBool('hasOnboarded', true);
     }
   }
 
@@ -241,17 +276,17 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                         right: 32.0,
                       ),
                       child: Align(
-                        alignment: Alignment.center,
+                        alignment: Alignment.centerLeft,
                         child: Text(
                           quote.text,
                           style: TextStyle(
                             fontSize: _getFontSize(quote.text),
                             fontWeight: FontWeight.w500,
-                            fontFamily: "Georgia",
+                            fontFamily: "EBGaramond",
                             color: _isDarkMode ? Colors.white : Colors.black,
                             height: 1.4,
                           ),
-                          textAlign: TextAlign.center,
+                          textAlign: TextAlign.left,
                         ),
                       ),
                     ),
@@ -270,7 +305,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                             fontSize: _getSourceFontSize(quote.authorInfo),
                             fontWeight: FontWeight.w300,
                             color: const Color.fromARGB(255, 166, 165, 165),
-                            fontFamily: "Georgia",
+                            fontFamily: "EBGaramond",
                           ),
                           textAlign: TextAlign.right,
                         ),
@@ -289,7 +324,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                                   _getSourceFontSize(quote.displaySource) - 2,
                               fontWeight: FontWeight.w300,
                               color: const Color.fromARGB(255, 140, 140, 140),
-                              fontFamily: "Georgia",
+                              fontFamily: "EBGaramond",
                               fontStyle: FontStyle.italic,
                             ),
                             textAlign: TextAlign.right,
@@ -317,7 +352,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                       child: Text(
                         'Read more »',
                         style: TextStyle(
-                          fontFamily: "Georgia",
+                          fontFamily: "EBGaramond",
                           color: _isDarkMode ? Colors.white : Colors.black,
                         ),
                       ),
@@ -367,7 +402,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             Text(
               '"${quote.text}"',
               style: TextStyle(
-                fontFamily: "Georgia",
+                fontFamily: "EBGaramond",
                 fontSize: 22,
                 fontStyle: FontStyle.italic,
                 color: _isDarkMode ? Colors.white : Colors.black,
@@ -382,7 +417,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               Text(
                 'Interpretation',
                 style: TextStyle(
-                  fontFamily: 'Georgia',
+                  fontFamily: 'EBGaramond',
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
                   color: _isDarkMode ? Colors.white : Colors.black,
@@ -392,7 +427,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               Text(
                 quote.interpretation!,
                 style: TextStyle(
-                  fontFamily: 'Georgia',
+                  fontFamily: 'EBGaramond',
                   fontSize: 16,
                   height: 1.6,
                   color: _isDarkMode
@@ -458,7 +493,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               color: _isDarkMode ? Colors.white70 : Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              fontFamily: 'Georgia',
+              fontFamily: 'EBGaramond',
             ),
           ),
           const SizedBox(height: 4),
@@ -467,7 +502,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             style: TextStyle(
               color: _isDarkMode ? Colors.white : Colors.black,
               fontSize: 15,
-              fontFamily: 'Georgia',
+              fontFamily: 'EBGaramond',
             ),
           ),
         ],
@@ -513,7 +548,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                     : (_isDarkMode ? Colors.white70 : Colors.black87),
                 fontSize: 12.0,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontFamily: 'Georgia',
+                fontFamily: 'EBGaramond',
               ),
             ),
             if (isSelected) ...[
@@ -542,9 +577,22 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     _applyFilters();
   }
 
+  void _toggleAuthorFilter(String authorName) {
+    setState(() {
+      if (_selectedAuthors.contains(authorName)) {
+        _selectedAuthors.remove(authorName);
+      } else {
+        _selectedAuthors.add(authorName);
+      }
+      _isFavoritesMode = false;
+    });
+    _applyFilters();
+  }
+
   void _clearFilter() {
     setState(() {
       _selectedTags.clear();
+      _selectedAuthors.clear();
       _isFavoritesMode = false;
     });
     _applyFilters();
@@ -559,11 +607,21 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     _applyFilters();
   }
 
+  void _applyAuthorFilter(Set<String> selectedAuthors) {
+    setState(() {
+      _selectedAuthors.clear();
+      _selectedAuthors.addAll(selectedAuthors);
+      _isFavoritesMode = false;
+    });
+    _applyFilters();
+  }
+
   void _toggleFavoritesFilter() {
     setState(() {
       _isFavoritesMode = !_isFavoritesMode;
       if (_isFavoritesMode) {
         _selectedTags.clear();
+        _selectedAuthors.clear();
       }
     });
     _applyFilters();
@@ -584,6 +642,8 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
           allQuotes: _allQuotes,
           favoriteQuotes: _favoriteQuotes,
           likeCounts: _likeCounts,
+          preferredAuthors: _preferredAuthors,
+          preferredTags: _preferredTags,
         );
         filteredQuotes = recommendationService.getRecommendations();
       } else if (_selectedTags.isEmpty) {
@@ -594,6 +654,12 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             (selectedTag) => quote.tags.contains(selectedTag),
           );
         }).toList();
+      }
+
+      if (_selectedAuthors.isNotEmpty) {
+        filteredQuotes = filteredQuotes
+            .where((quote) => _selectedAuthors.contains(quote.authorName))
+            .toList();
       }
 
       if (!_isFavoritesMode && !_isPersonalizedMode) {
@@ -678,18 +744,25 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   }
 
   void _navigateToBrowse() async {
-    final result = await Navigator.push<Set<String>>(
+    final result = await Navigator.push<Map<String, Set<String>>>(
       context,
       MaterialPageRoute(
         builder: (context) => BrowseHubPage(
           allQuotes: _allQuotes,
           initialSelectedTags: _selectedTags,
           isDarkMode: _isDarkMode,
+          initialSelectedAuthors: _selectedAuthors,
         ),
       ),
     );
     if (result != null && mounted) {
-      _applyTagFilter(result);
+      // This part might need adjustment depending on what BrowseHubPage returns.
+      // Assuming it can return a map like {'tags': Set<String>} or {'authors': Set<String>}.
+      if (result.containsKey('tags')) {
+        _applyTagFilter(result['tags']!);
+      } else if (result.containsKey('authors')) {
+        _applyAuthorFilter(result['authors']!);
+      }
     }
   }
 
@@ -702,22 +775,13 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     );
   }
 
-  void _showTagsPopup(BuildContext anchorContext) {
+  void _showDetailsPopup(BuildContext anchorContext) {
     final quote = _quotes[_currentIndex];
-    if (quote.tags.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This quote has no tags.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
 
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Tags',
+      barrierLabel: 'Details',
       barrierColor: Colors.black.withOpacity(0.1),
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
@@ -730,7 +794,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                 type: MaterialType.transparency,
                 child: Container(
                   constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    maxWidth: MediaQuery.of(context).size.width * 0.85,
                   ),
                   padding: const EdgeInsets.symmetric(
                     vertical: 16.0,
@@ -749,20 +813,82 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                       ),
                     ],
                   ),
-                  child: SingleChildScrollView(
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8.0,
-                      runSpacing: 8.0,
-                      children: quote.tags.map((tag) {
-                        return _buildTagChip(
-                          tag,
-                          onTap: (selectedTag) {
-                            Navigator.pop(context);
-                            _toggleTagFilter(selectedTag);
-                          },
-                        );
-                      }).toList(),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Tags Column
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 8.0),
+                                child: Text(
+                                  'Tags',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    fontFamily: 'EBGaramond',
+                                  ),
+                                ),
+                              ),
+                              if (quote.tags.isEmpty)
+                                const Text(
+                                  'No tags for this quote.',
+                                  style: TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                    fontFamily: 'EBGaramond',
+                                  ),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 8.0,
+                                  runSpacing: 8.0,
+                                  children: quote.tags.map((tag) {
+                                    return _buildTagChip(
+                                      tag,
+                                      onTap: (selectedTag) {
+                                        Navigator.pop(context);
+                                        _toggleTagFilter(selectedTag);
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const VerticalDivider(width: 24),
+
+                        // Author Column
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 8.0),
+                                child: Text(
+                                  'Author',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    fontFamily: 'EBGaramond',
+                                  ),
+                                ),
+                              ),
+                              _buildAuthorChip(
+                                quote.authorName,
+                                onTap: (selectedAuthor) {
+                                  Navigator.pop(context);
+                                  _toggleAuthorFilter(selectedAuthor);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -784,6 +910,61 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildAuthorChip(String authorName, {void Function(String)? onTap}) {
+    final bool isSelected = _selectedAuthors.contains(authorName);
+
+    return GestureDetector(
+      onTap: () {
+        if (onTap != null) {
+          onTap(authorName);
+        } else {
+          _toggleAuthorFilter(authorName);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (_isDarkMode
+                    ? Colors.white.withOpacity(0.2)
+                    : Colors.black.withOpacity(0.15))
+              : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16.0),
+          border: Border.all(
+            color: isSelected
+                ? (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.6)
+                : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.3),
+            width: isSelected ? 1.0 : 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              authorName,
+              style: TextStyle(
+                color: isSelected
+                    ? (_isDarkMode ? Colors.white : Colors.black)
+                    : (_isDarkMode ? Colors.white70 : Colors.black87),
+                fontSize: 12.0,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontFamily: 'EBGaramond',
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6.0),
+              Icon(
+                Icons.close,
+                size: 14.0,
+                color: _isDarkMode ? Colors.white : Colors.black,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTagsDetailSection(String title, List<String> tags) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -796,7 +977,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               color: _isDarkMode ? Colors.white70 : Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              fontFamily: 'Georgia',
+              fontFamily: 'EBGaramond',
             ),
           ),
           const SizedBox(height: 8),
@@ -846,7 +1027,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             '',
             style: TextStyle(
               color: _isDarkMode ? Colors.white : Colors.black,
-              fontFamily: 'Georgia',
+              fontFamily: 'EBGaramond',
             ),
           ),
           backgroundColor: _isDarkMode
@@ -867,7 +1048,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
-                fontFamily: 'Georgia',
+                fontFamily: 'EBGaramond',
                 color: _isDarkMode ? Colors.white : Colors.black,
               ),
             ),
@@ -1002,7 +1183,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                         icon: const Icon(Icons.sell_outlined),
                         iconSize: 24.0,
                         color: Colors.black,
-                        onPressed: () => _showTagsPopup(context),
+                        onPressed: () => _showDetailsPopup(context),
                       );
                     },
                   ),
@@ -1017,7 +1198,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
           'Literature Bites',
           style: TextStyle(
             color: _isDarkMode ? Colors.white : Colors.black,
-            fontFamily: 'Georgia',
+            fontFamily: 'EBGaramond',
           ),
         ),
         backgroundColor: _isDarkMode
@@ -1049,7 +1230,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             child: Center(
               child: Text(
                 "Literature Bites",
-                style: TextStyle(fontSize: 32, fontFamily: 'Georgia'),
+                style: TextStyle(fontSize: 32, fontFamily: 'EBGaramond'),
               ),
             ),
           ),
@@ -1102,7 +1283,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                 "Learn",
                 style: TextStyle(
                   color: Colors.white,
-                  fontFamily: 'Georgia',
+                  fontFamily: 'EBGaramond',
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1112,12 +1293,12 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               _navigateToLearn();
             },
           ),
-          if (_selectedTags.isNotEmpty || _isFavoritesMode)
+          if (_selectedTags.isNotEmpty ||
+              _selectedAuthors.isNotEmpty ||
+              _isFavoritesMode)
             ListTile(
               leading: const Icon(Icons.clear),
-              title: Text(
-                "Clear Filters (${_quotes.length}/${_allQuotes.length})",
-              ),
+              title: Text("Clear Filters"),
               onTap: () {
                 Navigator.pop(context);
                 _clearFilter();

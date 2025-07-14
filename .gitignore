@@ -45,5 +45,11 @@ app.*.map.json
 /android/app/release
 
 # Ignore data assets, except for the main quotes file
-assets/data/*
+assets/*
+
+# Ignore iOS app icons
+ios/Runner/Assets.xcassets/AppIcon.appiconset/*
+
+# Ignore Android launcher icons
+android/app/src/main/res/mipmap-*/ic_launcher.png
 # !assets/data/quotes.json

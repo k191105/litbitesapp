@@ -5,6 +5,8 @@ class RecommendationService {
   final List<Quote> allQuotes;
   final List<Quote> favoriteQuotes;
   final Map<String, int> likeCounts;
+  final Set<String> preferredAuthors;
+  final Set<String> preferredTags;
 
   // Feature weights can be tuned to adjust recommendation quality
   static const Map<String, double> _featureWeights = {
@@ -27,6 +29,8 @@ class RecommendationService {
     required this.allQuotes,
     required this.favoriteQuotes,
     required this.likeCounts,
+    this.preferredAuthors = const {},
+    this.preferredTags = const {},
   }) : _maxQuoteLength = allQuotes
            .map((q) => q.text.length)
            .reduce((a, b) => a > b ? a : b)
@@ -63,6 +67,19 @@ class RecommendationService {
       if (!favoriteQuoteIds.contains(candidate.id)) {
         score += 1.0;
       }
+
+      // Add a bonus for preferred authors from onboarding
+      if (preferredAuthors.contains(candidate.authorName)) {
+        score *= 1.5; // Give a 50% boost
+      }
+
+      // Add a bonus for matching preferred tags
+      final candidateTags = candidate.tags.toSet();
+      final matchedTags = candidateTags.intersection(preferredTags).length;
+      if (matchedTags > 0) {
+        score *= (1.0 + 0.2 * matchedTags); // 20% boost per matched tag
+      }
+
       recommendations[candidate] = score;
     }
 
