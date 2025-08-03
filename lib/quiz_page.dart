@@ -9,12 +9,14 @@ class QuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
   final List<Quote> allQuotes;
   final bool isDarkMode;
+  final Map<String, int> viewCounts;
 
   const QuizPage({
     super.key,
     required this.favoriteQuotes,
     required this.allQuotes,
     required this.isDarkMode,
+    required this.viewCounts,
   });
 
   @override
@@ -22,7 +24,7 @@ class QuizPage extends StatefulWidget {
 }
 
 class _QuizPageState extends State<QuizPage> {
-  final QuizService _quizService = QuizService();
+  late final QuizService _quizService;
   final SRSService _srsService = SRSService();
 
   List<QuizQuestion> _questions = [];
@@ -34,6 +36,8 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void initState() {
     super.initState();
+    final sessionSeed = DateTime.now().millisecondsSinceEpoch;
+    _quizService = QuizService(sessionSeed: sessionSeed);
     _startQuiz();
   }
 
@@ -42,6 +46,7 @@ class _QuizPageState extends State<QuizPage> {
       _questions = _quizService.generateQuiz(
         favoriteQuotes: widget.favoriteQuotes,
         allQuotes: widget.allQuotes,
+        viewCounts: widget.viewCounts,
       );
       _currentQuestionIndex = 0;
       _score = 0;

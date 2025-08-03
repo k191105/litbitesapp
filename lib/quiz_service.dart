@@ -3,21 +3,38 @@ import 'package:quotes_app/quote.dart';
 import 'package:quotes_app/quiz_models.dart';
 
 class QuizService {
-  final Random _random = Random();
+  late final Random _random;
+
+  QuizService({int? sessionSeed}) {
+    _random = Random(sessionSeed);
+  }
 
   List<QuizQuestion> generateQuiz({
     required List<Quote> favoriteQuotes,
     required List<Quote> allQuotes,
     int numberOfQuestions = 20,
+    Map<String, int> viewCounts = const {},
   }) {
     if (favoriteQuotes.isEmpty) return [];
 
+    // Prioritize quotes that have been seen but not excessively
+    final scoredQuotes = favoriteQuotes.map((quote) {
+      final views = viewCounts[quote.id] ?? 0;
+      // Simple scoring: higher score for fewer views (inverted)
+      // Add a small constant to avoid division by zero and handle un-viewed quotes
+      final score = 1.0 / (1.0 + views);
+      return MapEntry(quote, score);
+    }).toList();
+
+    // Sort by score descending to prioritize less-viewed quotes
+    scoredQuotes.sort((a, b) => b.value.compareTo(a.value));
+
     final List<QuizQuestion> questions = [];
-    final List<Quote> potentialQuotes = List.from(favoriteQuotes)
-      ..shuffle(_random);
+    final List<Quote> potentialQuotes = scoredQuotes.map((e) => e.key).toList();
 
     while (questions.length < numberOfQuestions && potentialQuotes.isNotEmpty) {
-      final quote = potentialQuotes.removeLast();
+      // Take from the top of the prioritized list
+      final quote = potentialQuotes.removeAt(0);
 
       final quizType = _determineQuizType(quote);
       final question = _prepareQuizData(
@@ -30,8 +47,9 @@ class QuizService {
         questions.add(question);
       }
       if (potentialQuotes.isEmpty && questions.length < numberOfQuestions) {
-        // If we run out of unique quotes, allow repeats
-        potentialQuotes.addAll(favoriteQuotes..shuffle(_random));
+        // If we run out of unique quotes, allow repeats by reshuffling the original scored list
+        final a = List<Quote>.from(favoriteQuotes)..shuffle(_random);
+        potentialQuotes.addAll(a);
       }
     }
     return questions;

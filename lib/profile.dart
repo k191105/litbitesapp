@@ -1,7 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:animated_digit/animated_digit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'quote.dart';
 
@@ -11,6 +10,7 @@ class ProfilePage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
   final List<Quote> seenQuotes;
   final bool isDarkMode;
+  final int currentStreak;
 
   const ProfilePage({
     super.key,
@@ -19,6 +19,7 @@ class ProfilePage extends StatefulWidget {
     required this.favoriteQuotes,
     required this.seenQuotes,
     required this.isDarkMode,
+    required this.currentStreak,
   });
 
   @override
@@ -166,9 +167,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Quotes Seen',
-                    widget.seenQuotesCount,
-                    Icons.visibility_outlined,
+                    'Current Streak',
+                    widget.currentStreak,
+                    Icons.local_fire_department_outlined,
+                    color: Colors.orange,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -258,7 +260,11 @@ class _ProfilePageState extends State<ProfilePage> {
     int value,
     IconData icon, {
     bool isPercentage = false,
+    Color? color,
   }) {
+    final cardColor =
+        color ?? (widget.isDarkMode ? Colors.white70 : Colors.black54);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -275,23 +281,21 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 28,
-            color: widget.isDarkMode ? Colors.white70 : Colors.black54,
-          ),
+          Icon(icon, size: 28, color: cardColor),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              AnimatedDigitWidget(
-                value: value,
-                textStyle: TextStyle(
+              Text(
+                value.toString(),
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Georgia',
-                  color: widget.isDarkMode ? Colors.white : Colors.black,
+                  color:
+                      color ??
+                      (widget.isDarkMode ? Colors.white : Colors.black),
                 ),
               ),
               if (isPercentage)

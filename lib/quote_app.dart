@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
@@ -8,7 +7,6 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import 'quote.dart';
 import 'quote_service.dart';
-import 'browse.dart';
 import 'browse_hub.dart';
 import 'about.dart';
 import 'learn_hub.dart';
@@ -19,9 +17,21 @@ import 'package:flutter/services.dart';
 import 'package:quotes_app/recommendation_service.dart';
 import 'package:flutter/rendering.dart';
 import 'onboarding_page.dart';
+import 'post_onboarding_sequence.dart';
+import 'info_card.dart';
+import 'services/notification_service.dart';
+import 'services/streak_service.dart';
+import 'widgets/streak_island.dart';
+import 'widgets/milestone_celebration.dart';
+
+class _InfoCardModel {
+  final String id;
+  const _InfoCardModel({required this.id});
+}
 
 class QuoteApp extends StatefulWidget {
-  const QuoteApp({super.key});
+  final String? quoteId;
+  const QuoteApp({super.key, this.quoteId});
 
   @override
   QuoteAppState createState() => QuoteAppState();
@@ -31,9 +41,15 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   int _currentIndex = 0;
   late PageController _pageController;
   final SRSService _srsService = SRSService();
+  final StreakService _streakService = StreakService();
   late ScrollController _detailsScrollController;
   late AnimationController _heartAnimationController;
   late Animation<double> _heartAnimation;
+
+  bool _showStreakIsland = false;
+  String _streakMessage = '';
+  List<Map<String, dynamic>> _weeklyView = [];
+  String? _celebrationType; // 'confetti' or 'fireworks'
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
@@ -41,15 +57,20 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   final Set<String> _selectedTags = <String>{};
   final Set<String> _seenQuoteIds = <String>{};
   final Map<String, int> _likeCounts = <String, int>{};
+  final Map<String, int> _viewCounts = <String, int>{};
   final Set<String> _preferredAuthors = <String>{};
   final Set<String> _preferredTags = <String>{};
   final Set<String> _selectedAuthors = <String>{};
   bool _isFavoritesMode = false;
   bool _isPersonalizedMode = true;
+  final Set<String> _infoCardIds = <String>{};
+  List<dynamic> _pageViewItems = [];
 
   bool _isDarkMode = false;
   bool _isSecondPageVisible = false;
   bool _isLoading = true;
+  bool _hasExploredLearn = false;
+  bool _hasExploredBrowse = false;
 
   @override
   void initState() {
@@ -75,6 +96,53 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       }
     });
     _loadQuotes();
+    _handleAppLaunch();
+  }
+
+  Future<void> _handleAppLaunch() async {
+    final result = await _streakService.recordAppLaunch();
+    final isNewEngagement = result['isNewEngagement'] as bool;
+
+    if (isNewEngagement) {
+      final currentStreak = result['currentStreak'] as int;
+      final isNewStreak = result['isNewStreak'] as bool;
+      final milestone = result['milestone'] as String?;
+
+      setState(() {
+        _streakMessage = isNewStreak
+            ? 'New Streak Started'
+            : '$currentStreak Day Streak!';
+        _weeklyView = result['weeklyView'] as List<Map<String, dynamic>>;
+        _showStreakIsland = true;
+        _celebrationType = milestone;
+      });
+
+      // Show celebration overlay if applicable
+      if (milestone != null) {
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            _showCelebrationOverlay();
+          }
+        });
+      }
+    }
+  }
+
+  void _showCelebrationOverlay() {
+    if (_celebrationType == null) return;
+
+    setState(() {
+      // The overlay will be shown in the UI build method
+    });
+
+    // Auto-hide after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) {
+        setState(() {
+          _celebrationType = null;
+        });
+      }
+    });
   }
 
   @override
@@ -97,6 +165,13 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
           decodedMap.map((key, value) => MapEntry(key, value as int)),
         );
       }
+      final viewCountsJson = prefs.getString('viewCounts');
+      if (viewCountsJson != null) {
+        final decodedMap = json.decode(viewCountsJson) as Map<String, dynamic>;
+        _viewCounts.addAll(
+          decodedMap.map((key, value) => MapEntry(key, value as int)),
+        );
+      }
 
       _isPersonalizedMode = prefs.getBool('personalizedSuggestions') ?? true;
 
@@ -109,6 +184,23 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         _isLoading = false;
       });
       _applyFilters();
+      if (widget.quoteId != null) {
+        final index = _quotes.indexWhere((q) => q.id == widget.quoteId);
+        if (index != -1) {
+          // Use a post-frame callback to ensure the PageView is built
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) {
+              _pageController.jumpToPage(index);
+              _showSecondPage();
+            }
+          });
+        }
+      }
+      NotificationService.scheduleForToday(
+        feed: _quotes,
+        favoriteQuotes: _favoriteQuotes,
+        now: DateTime.now(),
+      );
       await _showOnboardingIfNeeded();
     } catch (e) {
       setState(() {
@@ -135,6 +227,18 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       );
 
       if (result != null) {
+        // Show the post-onboarding sequence
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PostOnboardingSequence(
+              onFinished: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            fullscreenDialog: true,
+          ),
+        );
+
         setState(() {
           if (result.selectedTags.isNotEmpty) {
             _preferredTags.addAll(result.selectedTags);
@@ -219,6 +323,11 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     await prefs.setString('likeCounts', json.encode(_likeCounts));
   }
 
+  Future<void> _saveViewCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('viewCounts', json.encode(_viewCounts));
+  }
+
   void _toggleFavoriteFromBar() {
     if (_quotes.isEmpty) return;
     HapticFeedback.lightImpact();
@@ -255,7 +364,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   }
 
   Widget _buildQuoteCard(Quote quote) {
-    final likeCount = _likeCounts[quote.id] ?? 0;
     return GestureDetector(
       onDoubleTap: _toggleFavorite,
       child: Stack(
@@ -629,6 +737,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
 
   void _applyFilters() {
     setState(() {
+      final sessionSeed = DateTime.now().millisecondsSinceEpoch;
       List<Quote> baseQuotes;
       if (_isFavoritesMode) {
         baseQuotes = _favoriteQuotes;
@@ -636,30 +745,50 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         baseQuotes = _allQuotes;
       }
 
+      final totalViews = _viewCounts.values.fold(
+        0,
+        (sum, count) => sum + count,
+      );
+
       List<Quote> filteredQuotes;
       if (_isPersonalizedMode && _selectedTags.isEmpty && !_isFavoritesMode) {
         final recommendationService = RecommendationService(
           allQuotes: _allQuotes,
           favoriteQuotes: _favoriteQuotes,
           likeCounts: _likeCounts,
+          viewCounts: _viewCounts,
+          totalViews: totalViews,
           preferredAuthors: _preferredAuthors,
           preferredTags: _preferredTags,
+          sessionSeed: sessionSeed,
         );
         filteredQuotes = recommendationService.getRecommendations();
       } else if (_selectedTags.isEmpty) {
         filteredQuotes = List.from(baseQuotes);
+        // Reverse favorites to show most recently favorited first
+        if (_isFavoritesMode) {
+          filteredQuotes = filteredQuotes.reversed.toList();
+        }
       } else {
         filteredQuotes = baseQuotes.where((quote) {
           return _selectedTags.every(
             (selectedTag) => quote.tags.contains(selectedTag),
           );
         }).toList();
+        // Reverse favorites to show most recently favorited first
+        if (_isFavoritesMode) {
+          filteredQuotes = filteredQuotes.reversed.toList();
+        }
       }
 
       if (_selectedAuthors.isNotEmpty) {
         filteredQuotes = filteredQuotes
             .where((quote) => _selectedAuthors.contains(quote.authorName))
             .toList();
+        // Reverse favorites to show most recently favorited first
+        if (_isFavoritesMode) {
+          filteredQuotes = filteredQuotes.reversed.toList();
+        }
       }
 
       if (!_isFavoritesMode && !_isPersonalizedMode) {
@@ -667,6 +796,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       }
 
       _quotes = filteredQuotes;
+      _pageViewItems = List.from(_quotes);
       _currentIndex = 0;
       _isSecondPageVisible = false;
     });
@@ -694,7 +824,11 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   }
 
   void _navigateToProfile() async {
-    await Navigator.push(
+    final currentStreak = await _streakService.getCurrentWeekStreak();
+
+    if (!mounted) return;
+
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ProfilePage(
@@ -705,19 +839,10 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               .where((q) => _seenQuoteIds.contains(q.id))
               .toList(),
           isDarkMode: _isDarkMode,
+          currentStreak: currentStreak,
         ),
       ),
     );
-
-    final prefs = await SharedPreferences.getInstance();
-    final newPersonalizedMode =
-        prefs.getBool('personalizedSuggestions') ?? true;
-    if (newPersonalizedMode != _isPersonalizedMode) {
-      setState(() {
-        _isPersonalizedMode = newPersonalizedMode;
-      });
-      _applyFilters();
-    }
   }
 
   void _navigateToLearn() {
@@ -730,6 +855,9 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         ),
       );
     } else {
+      setState(() {
+        _hasExploredLearn = true;
+      });
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -737,6 +865,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             isDarkMode: _isDarkMode,
             allQuotes: _allQuotes,
             favoriteQuotes: _favoriteQuotes,
+            viewCounts: _viewCounts,
           ),
         ),
       );
@@ -744,6 +873,9 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   }
 
   void _navigateToBrowse() async {
+    setState(() {
+      _hasExploredBrowse = true;
+    });
     final result = await Navigator.push<Map<String, Set<String>>>(
       context,
       MaterialPageRoute(
@@ -1061,136 +1193,206 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       backgroundColor: _isDarkMode
           ? Colors.black
           : const Color.fromARGB(255, 240, 234, 225),
-      body: Column(
+      body: Stack(
         children: [
           // Main content area
-          Expanded(
-            child: IndexedStack(
-              index: _isSecondPageVisible ? 1 : 0,
-              children: <Widget>[
-                PageView.builder(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  onPageChanged: (index) {
-                    if (_quotes.isNotEmpty) {
-                      final quoteIndex = index % _quotes.length;
-                      setState(() {
-                        _currentIndex = quoteIndex;
-                        _seenQuoteIds.add(_quotes[quoteIndex].id);
-                      });
-                    }
-                  },
-                  itemBuilder: (context, index) {
-                    if (_quotes.isEmpty) {
-                      return Container(); // Should not happen if handled properly
-                    }
-                    final quoteIndex = index % _quotes.length;
-                    return _buildQuoteCard(_quotes[quoteIndex]);
-                  },
-                ),
-                _buildDetailsCard(_quotes[_currentIndex]),
-              ],
-            ),
-          ),
-
-          // Bottom navigation bar
-          Container(
-            width: double.infinity,
-            height: 100.0,
-            decoration: BoxDecoration(
-              border: Border.all(width: 1, color: Colors.white38),
-              color: _isDarkMode
-                  ? const Color.fromARGB(255, 239, 237, 231)
-                  : const Color.fromARGB(255, 224, 222, 212),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(30.0),
-                topRight: Radius.circular(30.0),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 25.0, right: 25.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  IconButton(
-                    icon: const Icon(Icons.share_outlined),
-                    iconSize: 24.0,
-                    color: Colors.black,
-                    onPressed: _shareQuoteAsImage,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_downward_outlined),
-                    iconSize: 24.0,
-                    color: Colors.black,
-                    onPressed: () {
-                      _hideSecondPage();
-                      _nextQuote();
-                    },
-                  ),
-                  IconButton(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          _favoriteQuotes.contains(_quotes[_currentIndex])
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color:
-                              _favoriteQuotes.contains(_quotes[_currentIndex])
-                              ? Colors.red
-                              : Colors.black,
-                        ),
-                        if ((_likeCounts[_quotes[_currentIndex].id] ?? 0) > 1)
-                          Positioned(
-                            right: -8,
-                            top: -4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                'x${_likeCounts[_quotes[_currentIndex].id]}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+          Column(
+            children: [
+              // Main content area
+              Expanded(
+                child: IndexedStack(
+                  index: _isSecondPageVisible ? 1 : 0,
+                  children: <Widget>[
+                    PageView.builder(
+                      controller: _pageController,
+                      scrollDirection: Axis.vertical,
+                      onPageChanged: (index) {
+                        if (_quotes.isNotEmpty) {
+                          final item = _pageViewItems[index];
+                          if (item is Quote) {
+                            final quoteId = item.id;
+                            setState(() {
+                              _currentIndex = _quotes.indexOf(item);
+                              if (!_seenQuoteIds.contains(quoteId)) {
+                                _seenQuoteIds.add(quoteId);
+                                _updatePageViewItems();
+                              }
+                            });
+                            _saveViewCounts();
+                            _viewCounts.update(
+                              quoteId,
+                              (value) => value + 1,
+                              ifAbsent: () => 1,
+                            );
+                          }
+                        }
+                      },
+                      itemBuilder: (context, index) {
+                        if (index >= _pageViewItems.length) {
+                          return Container();
+                        }
+                        final item = _pageViewItems[index];
+                        if (item is Quote) {
+                          return _buildQuoteCard(item);
+                        } else if (item is _InfoCardModel) {
+                          return _buildInfoCard();
+                        }
+                        return Container();
+                      },
+                      itemCount: _pageViewItems.length,
                     ),
-                    iconSize: 24.0,
-                    onPressed: _toggleFavoriteFromBar,
+                    _buildDetailsCard(_quotes[_currentIndex]),
+                  ],
+                ),
+              ),
+
+              // Bottom navigation bar
+              Container(
+                width: double.infinity,
+                height: 100.0,
+                decoration: BoxDecoration(
+                  border: Border.all(width: 1, color: Colors.white38),
+                  color: _isDarkMode
+                      ? const Color.fromARGB(255, 239, 237, 231)
+                      : const Color.fromARGB(255, 224, 222, 212),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(30.0),
+                    topRight: Radius.circular(30.0),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_upward_outlined),
-                    iconSize: 24.0,
-                    color: Colors.black,
-                    onPressed: () {
-                      _hideSecondPage();
-                      _previousQuote();
-                    },
-                  ),
-                  Builder(
-                    builder: (context) {
-                      return IconButton(
-                        icon: const Icon(Icons.sell_outlined),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 25.0, right: 25.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: <Widget>[
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined),
                         iconSize: 24.0,
                         color: Colors.black,
-                        onPressed: () => _showDetailsPopup(context),
-                      );
+                        onPressed: _shareQuoteAsImage,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_downward_outlined),
+                        iconSize: 24.0,
+                        color: Colors.black,
+                        onPressed: () {
+                          _hideSecondPage();
+                          _nextQuote();
+                        },
+                      ),
+                      IconButton(
+                        icon: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Icon(
+                              _favoriteQuotes.contains(_quotes[_currentIndex])
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color:
+                                  _favoriteQuotes.contains(
+                                    _quotes[_currentIndex],
+                                  )
+                                  ? Colors.red
+                                  : Colors.black,
+                            ),
+                            if ((_likeCounts[_quotes[_currentIndex].id] ?? 0) >
+                                1)
+                              Positioned(
+                                right: -8,
+                                top: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'x${_likeCounts[_quotes[_currentIndex].id]}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        iconSize: 24.0,
+                        onPressed: _toggleFavoriteFromBar,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_upward_outlined),
+                        iconSize: 24.0,
+                        color: Colors.black,
+                        onPressed: () {
+                          _hideSecondPage();
+                          _previousQuote();
+                        },
+                      ),
+                      Builder(
+                        builder: (context) {
+                          return IconButton(
+                            icon: const Icon(Icons.sell_outlined),
+                            iconSize: 24.0,
+                            color: Colors.black,
+                            onPressed: () => _showDetailsPopup(context),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Streak Island Overlay
+          if (_showStreakIsland)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false, // Don't apply SafeArea to bottom
+                child: Container(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(width: 0, color: Colors.transparent),
+                    ),
+                  ),
+                  child: StreakIsland(
+                    streakMessage: _streakMessage,
+                    weeklyView: _weeklyView,
+                    isDarkMode: _isDarkMode,
+                    onTap: () {
+                      // Optional: Show streak history or details
+                    },
+                    onDismiss: () {
+                      setState(() {
+                        _showStreakIsland = false;
+                      });
                     },
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+
+          // Celebration Overlay
+          if (_celebrationType != null)
+            Positioned.fill(
+              child: SimpleCelebrationOverlay(
+                animationType: _celebrationType!,
+                onComplete: () {
+                  setState(() {
+                    _celebrationType = null;
+                  });
+                },
+              ),
+            ),
         ],
       ),
       appBar: AppBar(
@@ -1206,6 +1408,8 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
             : const Color.fromARGB(255, 240, 234, 225),
         elevation: 0,
         scrolledUnderElevation: 0.0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         iconTheme: IconThemeData(
           color: _isDarkMode ? Colors.white : Colors.black,
         ),
@@ -1220,6 +1424,94 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       ),
       drawer: _buildDrawer(context),
     );
+  }
+
+  void _updatePageViewItems() {
+    setState(() {
+      final views = _seenQuoteIds.length;
+      if ([10, 30, 60].contains(views)) {
+        final cardId = 'info_$views';
+        if (!_infoCardIds.contains(cardId)) {
+          final nextQuoteIndex =
+              _pageViewItems.indexWhere(
+                (item) => item is Quote && item.id == _quotes[_currentIndex].id,
+              ) +
+              1;
+          if (nextQuoteIndex < _pageViewItems.length) {
+            _pageViewItems.insert(nextQuoteIndex, _InfoCardModel(id: cardId));
+            _infoCardIds.add(cardId);
+          }
+        }
+      }
+    });
+  }
+
+  Widget _buildInfoCard() {
+    String title = 'Did You Know?';
+    String message;
+    List<Widget> actions = [];
+    final cardColor = _isDarkMode
+        ? const Color.fromARGB(255, 239, 237, 231)
+        : const Color.fromARGB(255, 224, 222, 212);
+
+    final bool shouldShowLearnCard = !_hasExploredLearn;
+    final bool shouldShowBrowseCard = !_hasExploredBrowse;
+
+    if (shouldShowLearnCard && shouldShowBrowseCard) {
+      message =
+          'Expand the side drawer to browse quotes by author or tag, or to start a personalized quiz in the Learn section.';
+      actions = [
+        GradientOutlinedButton(
+          onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
+          backgroundColor: cardColor,
+          child: const Text('Browse'),
+        ),
+        GradientOutlinedButton(
+          onPressed: () => _handleInfoCardNavigation(_navigateToLearn),
+          backgroundColor: cardColor,
+          child: const Text('Learn'),
+        ),
+      ];
+    } else if (shouldShowLearnCard) {
+      message =
+          'Expand the side drawer to start a personalized quiz in the Learn section.';
+      actions = [
+        GradientOutlinedButton(
+          onPressed: () => _handleInfoCardNavigation(_navigateToLearn),
+          backgroundColor: cardColor,
+          child: const Text('Learn Now'),
+        ),
+      ];
+    } else if (shouldShowBrowseCard) {
+      message =
+          'Expand the side drawer to browse quotes by author, tag, or historical period.';
+      actions = [
+        GradientOutlinedButton(
+          onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
+          backgroundColor: cardColor,
+          child: const Text('Browse Now'),
+        ),
+      ];
+    } else {
+      // This case should ideally not be hit if logic is correct
+      return Container();
+    }
+    return Center(
+      child: InfoCard(
+        title: title,
+        message: message,
+        actions: actions,
+        color: cardColor,
+      ),
+    );
+  }
+
+  void _handleInfoCardNavigation(VoidCallback navigationAction) {
+    // Remove the info card before navigating
+    setState(() {
+      _pageViewItems.removeWhere((item) => item is _InfoCardModel);
+    });
+    navigationAction();
   }
 
   Drawer _buildDrawer(BuildContext context) {

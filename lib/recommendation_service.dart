@@ -5,8 +5,11 @@ class RecommendationService {
   final List<Quote> allQuotes;
   final List<Quote> favoriteQuotes;
   final Map<String, int> likeCounts;
+  final Map<String, int> viewCounts;
+  final int totalViews;
   final Set<String> preferredAuthors;
   final Set<String> preferredTags;
+  final int? sessionSeed;
 
   // Feature weights can be tuned to adjust recommendation quality
   static const Map<String, double> _featureWeights = {
@@ -20,17 +23,29 @@ class RecommendationService {
     'length': 2.0,
   };
 
+  // A conservative weight for how much view proportion affects the penalty
+  static const double _viewProportionWeight = 0.5;
+
+  // Size of the pool for weighted random sampling
+  static const int _reservoirSize = 150;
+
   // Pre-calculated normalization values
   final double _maxQuoteLength;
   final double _maxYear;
   final double _minYear;
 
+  // Random number generator for session-specific recommendations
+  final Random _random;
+
   RecommendationService({
     required this.allQuotes,
     required this.favoriteQuotes,
     required this.likeCounts,
+    required this.viewCounts,
+    required this.totalViews,
     this.preferredAuthors = const {},
     this.preferredTags = const {},
+    this.sessionSeed,
   }) : _maxQuoteLength = allQuotes
            .map((q) => q.text.length)
            .reduce((a, b) => a > b ? a : b)
@@ -44,49 +59,68 @@ class RecommendationService {
            .where((q) => q.year != null)
            .map((q) => q.year!)
            .reduce((a, b) => a < b ? a : b)
-           .toDouble();
+           .toDouble(),
+       _random = Random(sessionSeed);
 
   List<Quote> getRecommendations() {
     // Only provide recommendations if the user has favorited a meaningful number of quotes
     if (favoriteQuotes.length < 10) {
-      return (List<Quote>.from(allQuotes)..shuffle());
+      return (List<Quote>.from(allQuotes)..shuffle(_random));
     }
 
     final favoriteQuoteIds = favoriteQuotes.map((q) => q.id).toSet();
     final recommendations = <Quote, double>{};
 
     for (final candidate in allQuotes) {
-      double score = 0.0;
+      double rawScore = 0.0;
       for (final favorite in favoriteQuotes) {
         // Use a logarithmic scale for the like multiplier for diminishing returns
         final likeMultiplier = log((likeCounts[favorite.id] ?? 1) + 1);
-        score += _calculateSimilarity(candidate, favorite) * likeMultiplier;
+        rawScore += _calculateSimilarity(candidate, favorite) * likeMultiplier;
       }
 
       // Add a novelty bonus for non-favorited quotes to encourage discovery
       if (!favoriteQuoteIds.contains(candidate.id)) {
-        score += 1.0;
+        rawScore += 1.0;
       }
 
       // Add a bonus for preferred authors from onboarding
       if (preferredAuthors.contains(candidate.authorName)) {
-        score *= 1.5; // Give a 50% boost
+        rawScore *= 1.5; // Give a 50% boost
       }
 
       // Add a bonus for matching preferred tags
       final candidateTags = candidate.tags.toSet();
       final matchedTags = candidateTags.intersection(preferredTags).length;
       if (matchedTags > 0) {
-        score *= (1.0 + 0.2 * matchedTags); // 20% boost per matched tag
+        rawScore *= (1.0 + 0.2 * matchedTags); // 20% boost per matched tag
       }
 
-      recommendations[candidate] = score;
+      // 2. Exposure penalty: down-weight score based on view count
+      final views = viewCounts[candidate.id] ?? 0;
+      final viewProportion = totalViews > 0 ? views / totalViews : 0;
+      final penalty =
+          sqrt(1 + views) * (1 + _viewProportionWeight * viewProportion);
+      final effectiveScore = rawScore / penalty;
+
+      recommendations[candidate] = effectiveScore;
     }
 
     final sortedRecommendations = recommendations.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    return sortedRecommendations.map((entry) => entry.key).toList();
+    // 3. Top-K Reservoir: limit the pool to most relevant items
+    final reservoir = sortedRecommendations.take(_reservoirSize).toList();
+
+    // 4. Weighted Sampling: shuffle the reservoir based on score
+    final weightedSample = _performWeightedSampling(reservoir);
+
+    // Append the rest of the items, shuffled, for variety if user scrolls far
+    final remainingQuotes =
+        sortedRecommendations.skip(_reservoirSize).map((e) => e.key).toList()
+          ..shuffle(_random);
+
+    return weightedSample + remainingQuotes;
   }
 
   double _calculateSimilarity(Quote a, Quote b) {
@@ -159,6 +193,45 @@ class RecommendationService {
         _featureWeights['length']!;
 
     return totalSimilarity;
+  }
+
+  // Performs weighted random sampling without replacement
+  List<Quote> _performWeightedSampling(
+    List<MapEntry<Quote, double>> reservoir,
+  ) {
+    final result = <Quote>[];
+    final tempReservoir = List<MapEntry<Quote, double>>.from(reservoir);
+
+    if (tempReservoir.isEmpty) {
+      return result;
+    }
+
+    while (tempReservoir.isNotEmpty) {
+      final totalWeight = tempReservoir.fold(
+        0.0,
+        (sum, item) => sum + item.value,
+      );
+
+      if (totalWeight <= 0) {
+        // If remaining weights are zero, shuffle and add the rest
+        tempReservoir.shuffle(_random);
+        result.addAll(tempReservoir.map((e) => e.key));
+        break;
+      }
+
+      final pick = _random.nextDouble() * totalWeight;
+      var cumulativeWeight = 0.0;
+
+      for (var i = 0; i < tempReservoir.length; i++) {
+        cumulativeWeight += tempReservoir[i].value;
+        if (pick <= cumulativeWeight) {
+          final selected = tempReservoir.removeAt(i);
+          result.add(selected.key);
+          break; // Exit inner loop once item is picked
+        }
+      }
+    }
+    return result;
   }
 
   // Calculates similarity on a scale from 0 to 1 using a Gaussian-like curve

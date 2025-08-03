@@ -9,12 +9,14 @@ class LearnHubPage extends StatelessWidget {
   final bool isDarkMode;
   final List<Quote> allQuotes;
   final List<Quote> favoriteQuotes;
+  final Map<String, int> viewCounts;
 
   const LearnHubPage({
     super.key,
     required this.isDarkMode,
     required this.allQuotes,
     required this.favoriteQuotes,
+    required this.viewCounts,
   });
 
   @override
@@ -128,6 +130,7 @@ class LearnHubPage extends StatelessWidget {
                 isDarkMode: isDarkMode,
                 allQuotes: allQuotes,
                 favoriteQuotes: favoriteQuotes,
+                viewCounts: viewCounts,
               ),
             ),
           );
