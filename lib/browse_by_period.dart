@@ -4,13 +4,8 @@ import 'package:quotes_app/quote.dart';
 
 class BrowseByPeriodPage extends StatefulWidget {
   final List<Quote> allQuotes;
-  final bool isDarkMode;
 
-  const BrowseByPeriodPage({
-    super.key,
-    required this.allQuotes,
-    required this.isDarkMode,
-  });
+  const BrowseByPeriodPage({super.key, required this.allQuotes});
 
   @override
   State<BrowseByPeriodPage> createState() => _BrowseByPeriodPageState();
@@ -44,24 +39,18 @@ class _BrowseByPeriodPageState extends State<BrowseByPeriodPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'Browse by Period',
           style: TextStyle(
             fontFamily: 'Georgia',
-            color: widget.isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
           ),
         ),
-        backgroundColor: widget.isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: widget.isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
       body: ListView.builder(
         itemCount: _periods.length,
@@ -74,14 +63,14 @@ class _BrowseByPeriodPageState extends State<BrowseByPeriodPage> {
               style: TextStyle(
                 fontFamily: 'Georgia',
                 fontWeight: FontWeight.w600,
-                color: widget.isDarkMode ? Colors.white : Colors.black,
+                color: Theme.of(context).primaryColor,
               ),
             ),
             subtitle: Text(
               '$quoteCount quote${quoteCount > 1 ? 's' : ''}',
               style: TextStyle(
                 fontFamily: 'Georgia',
-                color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                color: Theme.of(context).primaryColor.withOpacity(0.7),
               ),
             ),
             onTap: () {
@@ -91,7 +80,6 @@ class _BrowseByPeriodPageState extends State<BrowseByPeriodPage> {
                   builder: (context) => PeriodQuotesPage(
                     periodName: period,
                     quotes: _quotesByPeriod[period]!,
-                    isDarkMode: widget.isDarkMode,
                   ),
                 ),
               );

@@ -97,10 +97,13 @@ class NotificationService {
   }
 
   static Future<void> _scheduleStreakReminderIfNeeded() async {
-    final streakService = StreakService();
-    final shouldSend = await streakService.shouldSendReminder();
+    final streakService = StreakService.instance;
+    final data = await streakService.loadData(); // A method to expose the data
+    final today = streakService
+        .getTodayLocal(); // A method to get today's date string
+    final lastEngagementDate = data['last_engagement_local_date'];
 
-    if (shouldSend) {
+    if (lastEngagementDate != today) {
       final reminderTime = _nextInstanceOfTime(DateTime.now(), 20); // 8 PM
 
       debugPrint('⏰ Scheduling streak reminder for: $reminderTime');
@@ -112,9 +115,6 @@ class NotificationService {
         'streak_reminder',
         reminderTime,
       );
-
-      // Mark that we've scheduled a reminder for today
-      await streakService.markReminderSent();
     }
   }
 

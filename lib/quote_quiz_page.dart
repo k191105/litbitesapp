@@ -7,13 +7,11 @@ import 'quote.dart';
 class QuoteQuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
   final List<Quote> allQuotes;
-  final bool isDarkMode;
 
   const QuoteQuizPage({
     super.key,
     required this.favoriteQuotes,
     required this.allQuotes,
-    required this.isDarkMode,
   });
 
   @override
@@ -67,10 +65,8 @@ class _QuoteQuizPageState extends State<QuoteQuizPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = widget.isDarkMode
-        ? Colors.black
-        : const Color.fromARGB(255, 240, 234, 225);
-    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
+    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).primaryColor;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -129,7 +125,7 @@ class _QuoteQuizPageState extends State<QuoteQuizPage> {
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
-              color: widget.isDarkMode
+              color: Theme.of(context).brightness == Brightness.dark
                   ? Colors.white.withOpacity(0.1)
                   : Colors.black.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
@@ -187,7 +183,9 @@ class _QuoteQuizPageState extends State<QuoteQuizPage> {
                 ),
                 color:
                     tileColor ??
-                    (widget.isDarkMode ? Colors.grey[850] : Colors.white),
+                    (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[850]
+                        : Colors.white),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
@@ -221,12 +219,8 @@ class _QuoteQuizPageState extends State<QuoteQuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.isDarkMode
-                    ? Colors.white
-                    : Colors.black,
-                foregroundColor: widget.isDarkMode
-                    ? Colors.black
-                    : Colors.white,
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _generateQuestion,

@@ -3,16 +3,16 @@ import 'package:quotes_app/browse.dart';
 import 'package:quotes_app/browse_by_author.dart';
 import 'package:quotes_app/browse_by_period.dart';
 import 'package:quotes_app/quote.dart';
+import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/utils/feature_gate.dart';
 
 class BrowseHubPage extends StatelessWidget {
-  final bool isDarkMode;
   final List<Quote> allQuotes;
   final Set<String> initialSelectedTags;
   final Set<String> initialSelectedAuthors;
 
   const BrowseHubPage({
     super.key,
-    required this.isDarkMode,
     required this.allQuotes,
     required this.initialSelectedTags,
     required this.initialSelectedAuthors,
@@ -21,49 +21,71 @@ class BrowseHubPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'Browse',
           style: TextStyle(
             fontFamily: 'Georgia',
-            color: isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
           ),
         ),
-        backgroundColor: isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
           _buildBrowseCard(
             context,
+            icon: Icons.search_outlined,
+            title: 'Search Quotes',
+            description: 'Find quotes with direct search.',
+            onTap: () {
+              requireFeature(
+                context,
+                EntitlementsService.search,
+                onAllowed: () {
+                  _showSearchPlaceholder(context);
+                },
+                onBlocked: () {
+                  openPaywall(context: context, contextKey: 'search');
+                },
+              );
+            },
+            enabled: true,
+          ),
+          const SizedBox(height: 16),
+          _buildBrowseCard(
+            context,
             icon: Icons.sell_outlined,
             title: 'Browse by Tags',
             description: 'Filter quotes by specific tags.',
-            onTap: () async {
-              final selectedTags = await Navigator.push<Set<String>>(
+            onTap: () {
+              requireFeature(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => BrowsePage(
-                    allQuotes: allQuotes,
-                    initialSelectedTags: initialSelectedTags,
-                    isDarkMode: isDarkMode,
-                  ),
-                ),
+                EntitlementsService.browseTags,
+                onAllowed: () async {
+                  final selectedTags = await Navigator.push<Set<String>>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BrowsePage(
+                        allQuotes: allQuotes,
+                        initialSelectedTags: initialSelectedTags,
+                      ),
+                    ),
+                  );
+                  if (selectedTags != null && context.mounted) {
+                    Navigator.pop(context, {'tags': selectedTags});
+                  }
+                },
+                onBlocked: () {
+                  openPaywall(context: context, contextKey: 'browse_tags');
+                },
               );
-              if (selectedTags != null && context.mounted) {
-                Navigator.pop(context, {'tags': selectedTags});
-              }
             },
-            isDarkMode: isDarkMode,
+            enabled: true,
           ),
           const SizedBox(height: 16),
           _buildBrowseCard(
@@ -78,7 +100,6 @@ class BrowseHubPage extends StatelessWidget {
                   builder: (context) => BrowseByAuthorPage(
                     allQuotes: allQuotes,
                     initialSelectedAuthors: initialSelectedAuthors,
-                    isDarkMode: isDarkMode,
                   ),
                 ),
               );
@@ -86,7 +107,6 @@ class BrowseHubPage extends StatelessWidget {
                 Navigator.pop(context, {'authors': selectedAuthors});
               }
             },
-            isDarkMode: isDarkMode,
             enabled: true,
           ),
           const SizedBox(height: 16),
@@ -95,12 +115,90 @@ class BrowseHubPage extends StatelessWidget {
             icon: Icons.history_edu_outlined,
             title: 'Browse by Period',
             description: 'Explore quotes from different historical periods.',
-            onTap: () {},
-            isDarkMode: isDarkMode,
-            enabled: false,
+            onTap: () {
+              requireFeature(
+                context,
+                EntitlementsService.browsePeriod,
+                onAllowed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          BrowseByPeriodPage(allQuotes: allQuotes),
+                    ),
+                  );
+                },
+                onBlocked: () {
+                  openPaywall(context: context, contextKey: 'browse_period');
+                },
+              );
+            },
+            enabled: true,
           ),
         ],
       ),
+    );
+  }
+
+  void _showSearchPlaceholder(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Icon(
+                Icons.search_outlined,
+                size: 48,
+                color: Theme.of(context).primaryColor.withOpacity(0.7),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Search Coming Soon',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Direct quote search is in development and will be available in the next update.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).primaryColor.withOpacity(0.7),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Got it'),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -110,7 +208,6 @@ class BrowseHubPage extends StatelessWidget {
     required String title,
     required String description,
     required VoidCallback onTap,
-    required bool isDarkMode,
     bool enabled = true,
   }) {
     return Opacity(
@@ -118,7 +215,7 @@ class BrowseHubPage extends StatelessWidget {
       child: Card(
         elevation: enabled ? 2 : 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: isDarkMode ? Colors.grey[850] : Colors.white,
+        color: Theme.of(context).cardColor,
         child: InkWell(
           onTap: enabled
               ? onTap
@@ -138,7 +235,7 @@ class BrowseHubPage extends StatelessWidget {
                 Icon(
                   icon,
                   size: 36,
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                  color: Theme.of(context).primaryColor.withOpacity(0.7),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
@@ -151,7 +248,7 @@ class BrowseHubPage extends StatelessWidget {
                           fontFamily: 'Georgia',
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isDarkMode ? Colors.white : Colors.black,
+                          color: Theme.of(context).primaryColor,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -163,7 +260,9 @@ class BrowseHubPage extends StatelessWidget {
                           fontStyle: enabled
                               ? FontStyle.normal
                               : FontStyle.italic,
-                          color: isDarkMode ? Colors.white70 : Colors.black87,
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.8),
                         ),
                       ),
                     ],

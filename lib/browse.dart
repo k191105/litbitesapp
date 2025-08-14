@@ -4,13 +4,11 @@ import 'quote.dart';
 class BrowsePage extends StatefulWidget {
   final List<Quote> allQuotes;
   final Set<String> initialSelectedTags;
-  final bool isDarkMode;
 
   const BrowsePage({
     super.key,
     required this.allQuotes,
     required this.initialSelectedTags,
-    required this.isDarkMode,
   });
 
   @override
@@ -20,7 +18,6 @@ class BrowsePage extends StatefulWidget {
 class BrowsePageState extends State<BrowsePage> {
   late Set<String> _selectedTags;
   List<String> _allTags = [];
-  bool _isDarkMode = false;
 
   @override
   void initState() {
@@ -59,24 +56,22 @@ class BrowsePageState extends State<BrowsePage> {
 
   Widget _buildTagItem(String tag) {
     final bool isSelected = _selectedTags.contains(tag);
-    final int quotesWithTag = widget.allQuotes
-        .where((quote) => quote.tags.contains(tag))
-        .length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       elevation: isSelected ? 4 : 1,
       color: isSelected
-          ? (_isDarkMode
+          ? (isDark
                 ? Colors.white.withOpacity(0.15)
                 : Colors.black.withOpacity(0.1))
-          : (_isDarkMode ? Colors.grey[800] : Colors.white),
+          : (isDark ? Colors.grey[800] : Colors.white),
       child: ListTile(
         leading: IconButton(
           icon: Icon(
             isSelected ? Icons.remove_circle : Icons.add_circle_outline,
             color: isSelected
-                ? (_isDarkMode ? Colors.white : Colors.black)
-                : (_isDarkMode ? Colors.white70 : Colors.grey[600]),
+                ? (isDark ? Colors.white : Colors.black)
+                : (isDark ? Colors.white70 : Colors.grey[600]),
           ),
           onPressed: () => _toggleTag(tag),
         ),
@@ -85,7 +80,7 @@ class BrowsePageState extends State<BrowsePage> {
           style: TextStyle(
             fontFamily: 'Georgia',
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: _isDarkMode ? Colors.white : Colors.black,
+            color: isDark ? Colors.white : Colors.black,
           ),
         ),
         onTap: () => _toggleTag(tag),
@@ -95,30 +90,28 @@ class BrowsePageState extends State<BrowsePage> {
 
   @override
   Widget build(BuildContext context) {
-    _isDarkMode = widget.isDarkMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final filteredQuotesCount = _getFilteredQuotesCount();
     final findButtonDisabled =
         _selectedTags.isNotEmpty && filteredQuotesCount == 0;
 
     return Scaffold(
-      backgroundColor: _isDarkMode
+      backgroundColor: isDark
           ? Colors.black
           : const Color.fromARGB(255, 240, 234, 225),
       appBar: AppBar(
         title: Text(
           'Browse Tags',
           style: TextStyle(
-            color: _isDarkMode ? Colors.white : Colors.black,
+            color: isDark ? Colors.white : Colors.black,
             fontFamily: 'Georgia',
           ),
         ),
-        backgroundColor: _isDarkMode
+        backgroundColor: isDark
             ? Colors.black
             : const Color.fromARGB(255, 240, 234, 225),
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: _isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
         actions: [
           if (_selectedTags.isNotEmpty)
             TextButton(
@@ -126,7 +119,7 @@ class BrowsePageState extends State<BrowsePage> {
               child: Text(
                 'Clear All',
                 style: TextStyle(
-                  color: _isDarkMode ? Colors.white70 : Colors.black87,
+                  color: isDark ? Colors.white70 : Colors.black87,
                   fontFamily: 'Georgia',
                 ),
               ),
@@ -142,12 +135,12 @@ class BrowsePageState extends State<BrowsePage> {
               padding: const EdgeInsets.all(16.0),
               margin: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: _isDarkMode
+                color: isDark
                     ? Colors.white.withOpacity(0.1)
                     : Colors.black.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12.0),
                 border: Border.all(
-                  color: _isDarkMode
+                  color: isDark
                       ? Colors.white.withOpacity(0.3)
                       : Colors.black.withOpacity(0.1),
                 ),
@@ -159,7 +152,7 @@ class BrowsePageState extends State<BrowsePage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _isDarkMode ? Colors.white : Colors.black,
+                      color: isDark ? Colors.white : Colors.black,
                       fontFamily: 'Georgia',
                     ),
                   ),
@@ -173,17 +166,17 @@ class BrowsePageState extends State<BrowsePage> {
                           tag,
                           style: TextStyle(
                             fontSize: 12,
-                            color: _isDarkMode ? Colors.black : Colors.black,
+                            color: isDark ? Colors.black : Colors.black,
                             fontFamily: 'Georgia',
                           ),
                         ),
-                        backgroundColor: _isDarkMode
+                        backgroundColor: isDark
                             ? Colors.white.withOpacity(0.7)
                             : Colors.black.withOpacity(0.1),
                         deleteIcon: Icon(
                           Icons.close,
                           size: 16,
-                          color: _isDarkMode ? Colors.black : Colors.black,
+                          color: isDark ? Colors.black : Colors.black,
                         ),
                         onDeleted: () => _toggleTag(tag),
                       );
@@ -200,7 +193,7 @@ class BrowsePageState extends State<BrowsePage> {
               'Select tags to filter quotes. You can choose multiple tags to find quotes that contain all selected tags.',
               style: TextStyle(
                 fontSize: 14,
-                color: _isDarkMode ? Colors.white70 : Colors.black87,
+                color: isDark ? Colors.white70 : Colors.black87,
                 fontFamily: 'Georgia',
               ),
               textAlign: TextAlign.center,
@@ -229,11 +222,11 @@ class BrowsePageState extends State<BrowsePage> {
             child: ElevatedButton(
               onPressed: findButtonDisabled ? null : _findQuotes,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isDarkMode
+                backgroundColor: isDark
                     ? Colors.white.withOpacity(0.9)
                     : Colors.black.withOpacity(0.9),
-                foregroundColor: _isDarkMode ? Colors.black : Colors.white,
-                disabledBackgroundColor: _isDarkMode
+                foregroundColor: isDark ? Colors.black : Colors.white,
+                disabledBackgroundColor: isDark
                     ? Colors.white.withOpacity(0.1)
                     : Colors.black.withOpacity(0.05),
                 padding: const EdgeInsets.symmetric(vertical: 16.0),

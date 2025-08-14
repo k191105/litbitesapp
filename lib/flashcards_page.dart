@@ -3,13 +3,8 @@ import 'quote.dart';
 
 class FlashcardsPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
-  final bool isDarkMode;
 
-  const FlashcardsPage({
-    super.key,
-    required this.favoriteQuotes,
-    required this.isDarkMode,
-  });
+  const FlashcardsPage({super.key, required this.favoriteQuotes});
 
   @override
   State<FlashcardsPage> createState() => _FlashcardsPageState();
@@ -47,10 +42,8 @@ class _FlashcardsPageState extends State<FlashcardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = widget.isDarkMode
-        ? Colors.black
-        : const Color.fromARGB(255, 240, 234, 225);
-    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
+    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).primaryColor;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -186,7 +179,9 @@ class _FlashcardsPageState extends State<FlashcardsPage> {
                 fontSize: 18,
                 fontFamily: 'Georgia',
                 fontStyle: FontStyle.italic,
-                color: widget.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[400]
+                    : Colors.grey[600],
               ),
             ),
           ],

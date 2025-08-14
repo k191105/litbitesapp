@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 class SimpleCelebrationOverlay extends StatefulWidget {
-  final String animationType; // 'confetti' or 'fireworks'
+  final String animationType; // 'confetti'
   final VoidCallback onComplete;
 
   const SimpleCelebrationOverlay({
@@ -66,9 +66,7 @@ class _SimpleCelebrationOverlayState extends State<SimpleCelebrationOverlay>
   }
 
   String get _animationPath {
-    return widget.animationType == 'confetti'
-        ? 'assets/animations/confetti.json'
-        : 'assets/animations/fireworks.json';
+    return 'assets/animations/confetti.json';
   }
 
   @override

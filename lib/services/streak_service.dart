@@ -1,185 +1,228 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quotes_app/services/analytics.dart';
+import 'package:quotes_app/services/entitlements_service.dart';
 
 class StreakService {
-  static const String _currentWeekKey = 'current_week_data';
-  static const String _totalStreakKey = 'total_streak_count';
-  static const String _weekStartDayKey = 'week_start_day';
+  static final StreakService instance = StreakService._();
+  StreakService._();
 
-  // Get the current week's start date (from when user first started this week)
-  Future<DateTime> _getCurrentWeekStart() async {
-    final prefs = await SharedPreferences.getInstance();
-    final weekStartString = prefs.getString(_weekStartDayKey);
+  // Persistence Keys
+  static const _lastEngagementDateKey = 'last_engagement_local_date';
+  static const _streakCountKey = 'streak_count';
+  static const _milestonesShownKey = 'milestones_shown';
+  static const _weeklyViewKey =
+      'weekly_view'; // Stores list of local date strings "YYYY-MM-DD"
 
-    if (weekStartString != null) {
-      final weekStart = DateTime.parse(weekStartString);
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
+  // Milestone definitions
+  static const _milestoneDays = [3, 7, 14, 21, 30];
+  static const _repeatingMilestoneInterval = 7;
 
-      // If it's been more than 7 days, start a new week
-      if (today.difference(weekStart).inDays >= 7) {
-        await prefs.setString(_weekStartDayKey, today.toIso8601String());
-        await prefs.remove(_currentWeekKey); // Clear current week data
-        return today;
-      }
+  // Feature pass mapping
+  static const _milestoneRewards = {
+    7: ['search'],
+    14: ['browse_tags', 'browse_period'],
+    21: ['premium_themes'],
+    30: ['premium_fonts'],
+  };
 
-      return weekStart;
-    } else {
-      // First time - start week today
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      await prefs.setString(_weekStartDayKey, today.toIso8601String());
-      return today;
-    }
-  }
-
-  Future<Map<String, dynamic>> getCurrentWeekData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final weeklyJson = prefs.getString(_currentWeekKey);
-
-    if (weeklyJson != null) {
-      return json.decode(weeklyJson) as Map<String, dynamic>;
-    }
-
-    return {};
-  }
-
-  Future<void> saveCurrentWeekData(Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_currentWeekKey, json.encode(data));
-  }
-
-  Future<int> getTotalStreak() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_totalStreakKey) ?? 0;
-  }
-
-  Future<void> saveTotalStreak(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_totalStreakKey, count);
-  }
-
-  Future<Map<String, dynamic>> recordAppLaunch() async {
+  String getTodayLocal() {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final todayKey = today.toIso8601String().split('T')[0];
+    return DateFormat('yyyy-MM-dd').format(now);
+  }
 
-    final currentWeekData = await getCurrentWeekData();
-
-    // Check if already engaged today
-    if (currentWeekData[todayKey] == true) {
-      return {
-        'isNewEngagement': false,
-        'weeklyView': await getWeeklyView(),
-        'currentStreak': await getCurrentWeekStreak(),
-        'totalStreak': await getTotalStreak(),
-        'milestone': null,
-      };
-    }
-
-    // Record today's engagement
-    currentWeekData[todayKey] = true;
-    await saveCurrentWeekData(currentWeekData);
-
-    // Update total streak
-    final totalStreak = await getTotalStreak();
-    await saveTotalStreak(totalStreak + 1);
-    final newTotalStreak = totalStreak + 1;
-
-    // Calculate current week streak
-    final currentWeekStreak = await getCurrentWeekStreak();
-
-    // Check for simple milestones (perfect week = 7, perfect month = 30)
-    String? milestone;
-    if (currentWeekStreak == 7) {
-      milestone = 'confetti'; // Perfect week
-    } else if (newTotalStreak == 30) {
-      milestone = 'confetti'; // Perfect month
-    }
-
-    debugPrint('📱 App launch recorded for $todayKey');
-    debugPrint('📊 Current week streak: $currentWeekStreak');
-    debugPrint('🎯 Total streak: $newTotalStreak');
-    if (milestone != null) {
-      debugPrint('🎉 Milestone reached: $milestone');
-    }
+  Future<Map<String, dynamic>> loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final weeklyViewJson = prefs.getString(_weeklyViewKey);
+    final milestonesJson = prefs.getString(_milestonesShownKey);
 
     return {
-      'isNewEngagement': true,
-      'weeklyView': await getWeeklyView(),
-      'currentStreak': currentWeekStreak,
-      'totalStreak': newTotalStreak,
-      'milestone': milestone,
-      'isNewStreak': currentWeekStreak == 1,
+      _lastEngagementDateKey: prefs.getString(_lastEngagementDateKey),
+      _streakCountKey: prefs.getInt(_streakCountKey) ?? 0,
+      _milestonesShownKey: (milestonesJson != null)
+          ? (json.decode(milestonesJson) as List).cast<int>()
+          : <int>[],
+      _weeklyViewKey: (weeklyViewJson != null)
+          ? (json.decode(weeklyViewJson) as List).cast<String>()
+          : <String>[],
     };
   }
 
-  Future<int> getCurrentWeekStreak() async {
-    final currentWeekData = await getCurrentWeekData();
-    return currentWeekData.values
-        .where((completed) => completed == true)
-        .length;
+  Future<void> _saveData({
+    String? lastEngagementDate,
+    int? streakCount,
+    List<int>? milestonesShown,
+    List<String>? weeklyView,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (lastEngagementDate != null) {
+      await prefs.setString(_lastEngagementDateKey, lastEngagementDate);
+    }
+    if (streakCount != null) {
+      await prefs.setInt(_streakCountKey, streakCount);
+    }
+    if (milestonesShown != null) {
+      await prefs.setString(_milestonesShownKey, json.encode(milestonesShown));
+    }
+    if (weeklyView != null) {
+      await prefs.setString(_weeklyViewKey, json.encode(weeklyView));
+    }
   }
 
-  Future<List<Map<String, dynamic>>> getWeeklyView() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final weekStart = await _getCurrentWeekStart();
-    final currentWeekData = await getCurrentWeekData();
+  Future<Map<String, dynamic>> recordAppLaunch() async {
+    final today = getTodayLocal();
+    final data = await loadData();
 
-    List<Map<String, dynamic>> weekView = [];
+    String? lastEngagementDate = data[_lastEngagementDateKey];
+    int streakCount = data[_streakCountKey];
+    List<int> milestonesShown = data[_milestonesShownKey];
+    List<String> weeklyView = data[_weeklyViewKey];
 
-    // Create day names starting from the week start day
-    final weekStartDayOfWeek = weekStart.weekday; // 1=Monday, 7=Sunday
-    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    for (int i = 0; i < 7; i++) {
-      final dayDate = weekStart.add(Duration(days: i));
-      final dayKey = dayDate.toIso8601String().split('T')[0];
-      final isCompleted = currentWeekData[dayKey] == true;
-      final isToday =
-          dayDate.day == today.day &&
-          dayDate.month == today.month &&
-          dayDate.year == today.year;
-
-      // Get the correct day name (cycle through dayNames starting from weekStartDayOfWeek)
-      final dayNameIndex = (weekStartDayOfWeek - 1 + i) % 7;
-
-      weekView.add({
-        'day': dayNames[dayNameIndex],
-        'date': dayDate,
-        'isCompleted': isCompleted,
-        'isToday': isToday,
-      });
+    if (lastEngagementDate == today) {
+      // Already engaged today, do nothing.
+      return {'isNewEngagement': false, 'weeklyView': await getWeeklyView()};
     }
 
-    return weekView;
-  }
+    final yesterday = DateFormat(
+      'yyyy-MM-dd',
+    ).format(DateTime.now().subtract(const Duration(days: 1)));
+    int previousStreak = streakCount;
 
-  Future<String> getStreakMessage(int currentStreak, bool isNewStreak) async {
-    if (isNewStreak) {
-      return 'New Streak Started';
-    } else if (currentStreak == 1) {
-      return '1 Day Streak!';
+    if (lastEngagementDate == yesterday) {
+      // Consecutive day, increment streak.
+      streakCount++;
     } else {
-      return '$currentStreak Day Streak!';
+      // Not consecutive, reset streak.
+      streakCount = 1;
+      weeklyView.clear();
     }
+
+    await Analytics.instance.logEvent('streak.increment', {
+      'from': previousStreak,
+      'to': streakCount,
+    });
+
+    // Update weekly view
+    weeklyView.add(today);
+    if (weeklyView.length > 7) {
+      weeklyView = weeklyView.sublist(weeklyView.length - 7);
+    }
+
+    // Check for new milestones
+    int? newMilestone;
+    List<String> awardedFeatureKeys = [];
+
+    int milestoneCandidate = _getMilestoneForStreak(streakCount);
+    if (milestoneCandidate > 0 &&
+        !milestonesShown.contains(milestoneCandidate)) {
+      newMilestone = milestoneCandidate;
+      milestonesShown.add(newMilestone);
+      await Analytics.instance.logEvent('streak.milestone_shown', {
+        'n': newMilestone,
+      });
+
+      // Grant feature passes
+      final features = _getFeaturesForMilestone(newMilestone);
+      if (features.isNotEmpty) {
+        awardedFeatureKeys.addAll(features);
+        for (var featureKey in features) {
+          await EntitlementsService.instance.grantFeaturePass(
+            featureKey,
+            const Duration(days: 7),
+            source: 'streak_$newMilestone',
+          );
+        }
+      }
+    }
+
+    await _saveData(
+      lastEngagementDate: today,
+      streakCount: streakCount,
+      milestonesShown: milestonesShown,
+      weeklyView: weeklyView,
+    );
+
+    return {
+      'isNewEngagement': true,
+      'streakCount': streakCount,
+      'milestone': newMilestone,
+      'celebrationType': _getAnimationForMilestone(newMilestone),
+      'awardedFeatureKeys': awardedFeatureKeys,
+      'weeklyView': await getWeeklyView(today, weeklyView), // Pass updated data
+    };
   }
 
-  Future<bool> shouldSendReminder() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final todayKey = today.toIso8601String().split('T')[0];
-
-    final currentWeekData = await getCurrentWeekData();
-
-    // Return true if user hasn't engaged today
-    return currentWeekData[todayKey] != true;
+  int _getMilestoneForStreak(int streak) {
+    if (_milestoneDays.contains(streak)) {
+      return streak;
+    }
+    if (streak > _milestoneDays.last &&
+        (streak - _milestoneDays.last) % _repeatingMilestoneInterval == 0) {
+      return streak;
+    }
+    return 0;
   }
 
-  Future<void> markReminderSent() async {
-    // For the new system, we don't need to track reminder sent separately
-    // The shouldSendReminder method checks engagement directly
+  String? _getAnimationForMilestone(int? milestone) {
+    if (milestone == null) return null;
+    if (milestone == 3) return 'confetti';
+    if (_milestoneDays.contains(milestone) || milestone > _milestoneDays.last)
+      return 'fireworks';
+    return null;
+  }
+
+  List<String> _getFeaturesForMilestone(int milestone) {
+    int key = milestone;
+    if (!_milestoneRewards.containsKey(key)) {
+      // Handle repeating milestones (e.g., 37, 44, ...)
+      if (key > 30) {
+        int cycleIndex = ((key - 31) ~/ 7) % _milestoneRewards.length;
+        key = _milestoneRewards.keys.elementAt(cycleIndex);
+      }
+    }
+    return _milestoneRewards[key] ?? [];
+  }
+
+  Future<int> getStreakCount() async {
+    final data = await loadData();
+    return data[_streakCountKey];
+  }
+
+  Future<List<bool>> getWeeklyView([
+    String? today,
+    List<String>? currentWeeklyView,
+  ]) async {
+    today ??= getTodayLocal();
+    final data = await loadData();
+    currentWeeklyView ??= data[_weeklyViewKey];
+
+    final sevenDays = List.generate(7, (i) {
+      return DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.now().subtract(Duration(days: 6 - i)));
+    });
+
+    return sevenDays.map((day) => currentWeeklyView!.contains(day)).toList();
+  }
+
+  // dev panel helpers
+  Future<void> resetStreak() async {
+    await _saveData(
+      lastEngagementDate: null,
+      streakCount: 0,
+      milestonesShown: [],
+      weeklyView: [],
+    );
+  }
+
+  Future<void> simulateMilestone(int milestone) async {
+    await _saveData(
+      lastEngagementDate: DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.now().subtract(Duration(days: 1))),
+      streakCount: milestone - 1,
+    );
   }
 }

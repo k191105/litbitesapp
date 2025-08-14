@@ -1,31 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'dev_panel.dart';
 
-class AboutPage extends StatelessWidget {
-  final bool isDarkMode;
+class AboutPage extends StatefulWidget {
+  const AboutPage({super.key});
 
-  const AboutPage({super.key, required this.isDarkMode});
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  PackageInfo _packageInfo = PackageInfo(
+    appName: '',
+    packageName: '',
+    version: '',
+    buildNumber: '',
+    buildSignature: '',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _packageInfo = info;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'About Literature Bites',
           style: TextStyle(
-            color: isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
             fontFamily: 'Georgia',
           ),
         ),
-        backgroundColor: isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -38,9 +59,7 @@ class AboutPage extends StatelessWidget {
                 fontFamily: 'Georgia',
                 fontSize: 16,
                 height: 1.5,
-                color: isDarkMode
-                    ? Colors.white.withOpacity(0.9)
-                    : Colors.black.withOpacity(0.9),
+                color: Theme.of(context).primaryColor.withOpacity(0.9),
               ),
             ),
             const SizedBox(height: 20),
@@ -50,9 +69,7 @@ class AboutPage extends StatelessWidget {
                 fontFamily: 'Georgia',
                 fontSize: 16,
                 height: 1.5,
-                color: isDarkMode
-                    ? Colors.white.withOpacity(0.9)
-                    : Colors.black.withOpacity(0.9),
+                color: Theme.of(context).primaryColor.withOpacity(0.9),
               ),
             ),
             const SizedBox(height: 20),
@@ -63,8 +80,27 @@ class AboutPage extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 height: 1.5,
-                color: isDarkMode ? Colors.white : Colors.black,
+                color: Theme.of(context).primaryColor,
               ),
+            ),
+            if (kDebugMode)
+              ListTile(
+                leading: const Icon(Icons.developer_mode),
+                title: const Text('Developer Panel'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DevPanelPage(),
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 24),
+            Text(
+              'Version: ${_packageInfo.version}+${_packageInfo.buildNumber}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
           ],
         ),

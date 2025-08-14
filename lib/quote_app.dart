@@ -1,18 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:screenshot/screenshot.dart';
-import 'dart:io';
-import 'package:share_plus/share_plus.dart';
-import 'quote.dart';
-import 'quote_service.dart';
-import 'browse_hub.dart';
-import 'about.dart';
-import 'learn_hub.dart';
-import 'profile.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'srs_service.dart';
 import 'package:flutter/services.dart';
 import 'package:quotes_app/recommendation_service.dart';
 import 'package:flutter/rendering.dart';
@@ -23,6 +11,27 @@ import 'services/notification_service.dart';
 import 'services/streak_service.dart';
 import 'widgets/streak_island.dart';
 import 'widgets/milestone_celebration.dart';
+import 'widgets/quote_card.dart';
+import 'widgets/details_card.dart';
+import 'widgets/bottom_action_bar.dart';
+import 'widgets/details_popup.dart';
+import 'widgets/tag_chip.dart';
+import 'widgets/author_chip.dart';
+import 'utils/share_quote.dart';
+import 'utils/system_ui.dart';
+import 'widgets/active_filters_bar.dart';
+import 'widgets/settings_sheet.dart';
+import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/widgets/award_sheet.dart';
+import 'package:quotes_app/widgets/reward_island.dart';
+import 'quote.dart';
+import 'quote_service.dart';
+import 'browse_hub.dart';
+import 'about.dart';
+import 'learn_hub.dart';
+import 'profile_rewards_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'srs_service.dart';
 
 class _InfoCardModel {
   final String id;
@@ -37,19 +46,20 @@ class QuoteApp extends StatefulWidget {
   QuoteAppState createState() => QuoteAppState();
 }
 
-class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
+class QuoteAppState extends State<QuoteApp>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   int _currentIndex = 0;
   late PageController _pageController;
   final SRSService _srsService = SRSService();
-  final StreakService _streakService = StreakService();
   late ScrollController _detailsScrollController;
   late AnimationController _heartAnimationController;
   late Animation<double> _heartAnimation;
 
   bool _showStreakIsland = false;
   String _streakMessage = '';
-  List<Map<String, dynamic>> _weeklyView = [];
+  List<bool> _weeklyView = [];
   String? _celebrationType; // 'confetti' or 'fireworks'
+  String? _awardedFeatureKey;
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
@@ -63,18 +73,18 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   final Set<String> _selectedAuthors = <String>{};
   bool _isFavoritesMode = false;
   bool _isPersonalizedMode = true;
+  bool _isLoading = true;
+  bool _isSecondPageVisible = false;
   final Set<String> _infoCardIds = <String>{};
   List<dynamic> _pageViewItems = [];
 
-  bool _isDarkMode = false;
-  bool _isSecondPageVisible = false;
-  bool _isLoading = true;
   bool _hasExploredLearn = false;
   bool _hasExploredBrowse = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     _detailsScrollController = ScrollController();
     _heartAnimationController = AnimationController(
@@ -99,36 +109,52 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     _handleAppLaunch();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      EntitlementsService.instance.clearExpiredPasses().then((_) {
+        // A simple way to refresh any UI that depends on entitlements
+        setState(() {});
+      });
+    }
+  }
+
   Future<void> _handleAppLaunch() async {
-    final result = await _streakService.recordAppLaunch();
+    final result = await StreakService.instance.recordAppLaunch();
     final isNewEngagement = result['isNewEngagement'] as bool;
 
     if (isNewEngagement) {
-      final currentStreak = result['currentStreak'] as int;
-      final isNewStreak = result['isNewStreak'] as bool;
-      final milestone = result['milestone'] as String?;
+      final streakCount = result['streakCount'] as int;
+      final celebrationType = result['celebrationType'] as String?;
+      final awardedFeatureKeys = (result['awardedFeatureKeys'] as List)
+          .cast<String>();
 
       setState(() {
-        _streakMessage = isNewStreak
-            ? 'New Streak Started'
-            : '$currentStreak Day Streak!';
-        _weeklyView = result['weeklyView'] as List<Map<String, dynamic>>;
+        _streakMessage = '$streakCount Day Streak!';
+        _weeklyView = result['weeklyView'] as List<bool>;
         _showStreakIsland = true;
-        _celebrationType = milestone;
+        _celebrationType = celebrationType;
       });
 
       // Show celebration overlay if applicable
-      if (milestone != null) {
+      if (celebrationType != null) {
         Future.delayed(const Duration(milliseconds: 1000), () {
           if (mounted) {
-            _showCelebrationOverlay();
+            _showCelebrationOverlay(awardedFeatureKeys);
           }
+        });
+      }
+    } else {
+      final weeklyView = result['weeklyView'] as List<bool>?;
+      if (weeklyView != null) {
+        setState(() {
+          _weeklyView = weeklyView;
         });
       }
     }
   }
 
-  void _showCelebrationOverlay() {
+  void _showCelebrationOverlay(List<String> awardedFeatureKeys) {
     if (_celebrationType == null) return;
 
     setState(() {
@@ -141,12 +167,41 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         setState(() {
           _celebrationType = null;
         });
+        // After celebration, if there are awards, show the award sheet.
+        if (awardedFeatureKeys.isNotEmpty) {
+          setState(() {
+            _awardedFeatureKey = awardedFeatureKeys.first;
+          });
+        }
       }
     });
   }
 
+  void _showAwardSheet(List<String> awardedFeatureKeys) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return AwardSheet(
+          awardedFeatureKeys: awardedFeatureKeys,
+          onSeeRewards: () {
+            Navigator.of(context).pop(); // Close the sheet
+            _navigateToRewardsCenter();
+          },
+          onTryFeature: (featureKey) {
+            Navigator.of(context).pop(); // Close the sheet
+            // For now, just show a snackbar. Later, this will navigate.
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Feature coming in Phase 2: $featureKey')),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _detailsScrollController.dispose();
     _heartAnimationController.dispose();
@@ -174,6 +229,10 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
       }
 
       _isPersonalizedMode = prefs.getBool('personalizedSuggestions') ?? true;
+      final seenInfoCardIds = prefs.getStringList('infoCardIds') ?? [];
+      _infoCardIds.addAll(seenInfoCardIds);
+      final seenQuoteIds = prefs.getStringList('seenQuoteIds') ?? [];
+      _seenQuoteIds.addAll(seenQuoteIds);
 
       setState(() {
         _allQuotes = quotes;
@@ -256,12 +315,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     }
   }
 
-  void _toggleDarkMode() {
-    setState(() {
-      _isDarkMode = !_isDarkMode;
-    });
-  }
-
   void _showSecondPage() {
     if (_detailsScrollController.hasClients) {
       _detailsScrollController.jumpTo(0);
@@ -321,6 +374,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     final favoriteIds = _favoriteQuotes.map((q) => q.id).toList();
     await prefs.setStringList('favoriteQuoteIds', favoriteIds);
     await prefs.setString('likeCounts', json.encode(_likeCounts));
+    await prefs.setStringList('seenQuoteIds', _seenQuoteIds.toList());
   }
 
   Future<void> _saveViewCounts() async {
@@ -336,11 +390,10 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     setState(() {
       if (_favoriteQuotes.contains(currentQuote)) {
         _favoriteQuotes.remove(currentQuote);
-        _likeCounts.remove(currentQuote.id);
         _srsService.removeQuote(currentQuote.id);
       } else {
         _favoriteQuotes.add(currentQuote);
-        _likeCounts[currentQuote.id] = 1;
+        _likeCounts[currentQuote.id] = (_likeCounts[currentQuote.id] ?? 0) + 1;
         _srsService.addQuote(currentQuote.id);
         _heartAnimationController.forward(from: 0.0);
       }
@@ -348,328 +401,28 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     });
   }
 
-  double _getFontSize(String text) {
-    if (text.length > 300) return 20.0;
-    if (text.length > 200) return 22.0;
-    if (text.length > 120) return 24.0;
-    if (text.length > 80) return 26.0;
-    return 28.0;
-  }
-
-  double _getSourceFontSize(String source) {
-    if (source.length > 100) return 15.0;
-    if (source.length > 80) return 16.0;
-    if (source.length > 60) return 17.0;
-    return 18.0;
-  }
-
   Widget _buildQuoteCard(Quote quote) {
-    return GestureDetector(
+    return QuoteCard(
+      quote: quote,
       onDoubleTap: _toggleFavorite,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            height: double.infinity,
-            child: Center(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: 32.0,
-                        bottom: 10.0,
-                        top: 32.0,
-                        right: 32.0,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          quote.text,
-                          style: TextStyle(
-                            fontSize: _getFontSize(quote.text),
-                            fontWeight: FontWeight.w500,
-                            fontFamily: "EBGaramond",
-                            color: _isDarkMode ? Colors.white : Colors.black,
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.left,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20.0),
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: 32.0,
-                        right: 32.0,
-                        top: 10.0,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          '— ${quote.authorInfo}',
-                          style: TextStyle(
-                            fontSize: _getSourceFontSize(quote.authorInfo),
-                            fontWeight: FontWeight.w300,
-                            color: const Color.fromARGB(255, 166, 165, 165),
-                            fontFamily: "EBGaramond",
-                          ),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ),
-                    if (quote.displaySource.isNotEmpty) ...[
-                      const SizedBox(height: 8.0),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 32.0, right: 32.0),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            quote.displaySource,
-                            style: TextStyle(
-                              fontSize:
-                                  _getSourceFontSize(quote.displaySource) - 2,
-                              fontWeight: FontWeight.w300,
-                              color: const Color.fromARGB(255, 140, 140, 140),
-                              fontFamily: "EBGaramond",
-                              fontStyle: FontStyle.italic,
-                            ),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    // Tags as chips
-                    OutlinedButton(
-                      onPressed: _showSecondPage,
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30.0),
-                        ),
-                        side: BorderSide(
-                          width: 0.5,
-                          color: _isDarkMode ? Colors.white54 : Colors.black54,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24.0,
-                          vertical: 12.0,
-                        ),
-                      ),
-                      child: Text(
-                        'Read more »',
-                        style: TextStyle(
-                          fontFamily: "EBGaramond",
-                          color: _isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          FadeTransition(
-            opacity: _heartAnimation,
-            child: ScaleTransition(
-              scale: _heartAnimation,
-              child: Icon(
-                Icons.favorite,
-                size: 120,
-                color: Colors.red.withOpacity(0.8),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSharableQuoteCard(Quote quote) {
-    return Material(
-      color: _isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
-      child: Container(
-        padding: const EdgeInsets.all(32.0),
-        child: _buildQuoteCard(quote),
-      ),
-    );
-  }
-
-  Widget _buildDetailsCard(Quote quote) {
-    return SingleChildScrollView(
-      controller: _detailsScrollController,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Quote Text
-            Text(
-              '"${quote.text}"',
-              style: TextStyle(
-                fontFamily: "EBGaramond",
-                fontSize: 22,
-                fontStyle: FontStyle.italic,
-                color: _isDarkMode ? Colors.white : Colors.black,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Interpretation Section
-            if (quote.interpretation != null &&
-                quote.interpretation!.isNotEmpty) ...[
-              Text(
-                'Interpretation',
-                style: TextStyle(
-                  fontFamily: 'EBGaramond',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: _isDarkMode ? Colors.white : Colors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                quote.interpretation!,
-                style: TextStyle(
-                  fontFamily: 'EBGaramond',
-                  fontSize: 16,
-                  height: 1.6,
-                  color: _isDarkMode
-                      ? Colors.white.withOpacity(0.85)
-                      : Colors.black.withOpacity(0.85),
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-
-            const Divider(),
-            const SizedBox(height: 24),
-
-            // Metadata sections
-            _buildDetailSection('Author', quote.authorInfo),
-            if (quote.displaySource.isNotEmpty)
-              _buildDetailSection('Source', quote.displaySource),
-            if (quote.sourceBlurb != null && quote.sourceBlurb!.isNotEmpty)
-              _buildDetailSection('Source Note', quote.sourceBlurb!),
-
-            const SizedBox(height: 24),
-
-            // Tags
-            if (quote.tags.isNotEmpty)
-              _buildTagsDetailSection('Tags', quote.tags),
-
-            const SizedBox(height: 48),
-
-            // Back button
-            Center(
-              child: OutlinedButton(
-                onPressed: _hideSecondPage,
-                style: OutlinedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  side: BorderSide(
-                    width: 0.2,
-                    color: _isDarkMode ? Colors.white : Colors.black,
-                  ),
-                ),
-                child: Text(
-                  '« Back to Quote',
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white : Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailSection(String title, String content) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: _isDarkMode ? Colors.white70 : Colors.black87,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'EBGaramond',
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            content,
-            style: TextStyle(
-              color: _isDarkMode ? Colors.white : Colors.black,
-              fontSize: 15,
-              fontFamily: 'EBGaramond',
-            ),
-          ),
-        ],
-      ),
+      onReadMore: _showSecondPage,
+      heartAnimation: _heartAnimation,
     );
   }
 
   Widget _buildTagChip(String tag, {void Function(String)? onTap}) {
     final bool isSelected = _selectedTags.contains(tag);
 
-    return GestureDetector(
-      onTap: () {
+    return TagChip(
+      tag: tag,
+      isSelected: isSelected,
+      onTap: (selectedTag) {
         if (onTap != null) {
           onTap(tag);
         } else {
           _toggleTagFilter(tag);
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (_isDarkMode
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.15))
-              : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(
-            color: isSelected
-                ? (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.6)
-                : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.3),
-            width: isSelected ? 1.0 : 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              tag,
-              style: TextStyle(
-                color: isSelected
-                    ? (_isDarkMode ? Colors.white : Colors.black)
-                    : (_isDarkMode ? Colors.white70 : Colors.black87),
-                fontSize: 12.0,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontFamily: 'EBGaramond',
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6.0),
-              Icon(
-                Icons.close,
-                size: 14.0,
-                color: _isDarkMode ? Colors.white : Colors.black,
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
@@ -807,41 +560,17 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   }
 
   Future<void> _shareQuoteAsImage() async {
-    final screenshotController = ScreenshotController();
-    final quoteToShare = _quotes[_currentIndex];
-
-    final image = await screenshotController.captureFromWidget(
-      _buildSharableQuoteCard(quoteToShare),
-      pixelRatio: MediaQuery.of(context).devicePixelRatio,
-      context: context,
+    await shareQuoteAsImage(
+      context,
+      _quotes[_currentIndex],
+      Theme.of(context).brightness == Brightness.dark,
     );
-
-    final directory = await getApplicationDocumentsDirectory();
-    final imagePath = await File('${directory.path}/quote.png').create();
-    await imagePath.writeAsBytes(image);
-
-    await Share.shareXFiles([XFile(imagePath.path)]);
   }
 
-  void _navigateToProfile() async {
-    final currentStreak = await _streakService.getCurrentWeekStreak();
-
-    if (!mounted) return;
-
+  void _navigateToProfile() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ProfilePage(
-          seenQuotesCount: _seenQuoteIds.length,
-          favoriteQuotesCount: _favoriteQuotes.length,
-          favoriteQuotes: _favoriteQuotes,
-          seenQuotes: _allQuotes
-              .where((q) => _seenQuoteIds.contains(q.id))
-              .toList(),
-          isDarkMode: _isDarkMode,
-          currentStreak: currentStreak,
-        ),
-      ),
+      MaterialPageRoute(builder: (context) => const ProfileRewardsPage()),
     );
   }
 
@@ -862,7 +591,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         context,
         MaterialPageRoute(
           builder: (context) => LearnHubPage(
-            isDarkMode: _isDarkMode,
             allQuotes: _allQuotes,
             favoriteQuotes: _favoriteQuotes,
             viewCounts: _viewCounts,
@@ -882,7 +610,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         builder: (context) => BrowseHubPage(
           allQuotes: _allQuotes,
           initialSelectedTags: _selectedTags,
-          isDarkMode: _isDarkMode,
           initialSelectedAuthors: _selectedAuthors,
         ),
       ),
@@ -901,142 +628,30 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   void _navigateToAbout() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => AboutPage(isDarkMode: _isDarkMode),
-      ),
+      MaterialPageRoute(builder: (context) => AboutPage()),
+    );
+  }
+
+  void _navigateToRewardsCenter() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ProfileRewardsPage()),
     );
   }
 
   void _showDetailsPopup(BuildContext anchorContext) {
     final quote = _quotes[_currentIndex];
 
-    showGeneralDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Details',
-      barrierColor: Colors.black.withOpacity(0.1),
-      transitionDuration: const Duration(milliseconds: 200),
-      pageBuilder: (context, anim1, anim2) {
-        return Stack(
-          children: [
-            Positioned(
-              right: 20,
-              bottom: 105,
-              child: Material(
-                type: MaterialType.transparency,
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.85,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 16.0,
-                    horizontal: 20.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _isDarkMode
-                        ? const Color.fromARGB(220, 45, 45, 45)
-                        : const Color.fromARGB(240, 255, 255, 255),
-                    borderRadius: BorderRadius.circular(20.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        spreadRadius: 2,
-                        blurRadius: 15,
-                      ),
-                    ],
-                  ),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Tags Column
-                        Flexible(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 8.0),
-                                child: Text(
-                                  'Tags',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    fontFamily: 'EBGaramond',
-                                  ),
-                                ),
-                              ),
-                              if (quote.tags.isEmpty)
-                                const Text(
-                                  'No tags for this quote.',
-                                  style: TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    fontFamily: 'EBGaramond',
-                                  ),
-                                )
-                              else
-                                Wrap(
-                                  spacing: 8.0,
-                                  runSpacing: 8.0,
-                                  children: quote.tags.map((tag) {
-                                    return _buildTagChip(
-                                      tag,
-                                      onTap: (selectedTag) {
-                                        Navigator.pop(context);
-                                        _toggleTagFilter(selectedTag);
-                                      },
-                                    );
-                                  }).toList(),
-                                ),
-                            ],
-                          ),
-                        ),
-
-                        const VerticalDivider(width: 24),
-
-                        // Author Column
-                        Flexible(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 8.0),
-                                child: Text(
-                                  'Author',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    fontFamily: 'EBGaramond',
-                                  ),
-                                ),
-                              ),
-                              _buildAuthorChip(
-                                quote.authorName,
-                                onTap: (selectedAuthor) {
-                                  Navigator.pop(context);
-                                  _toggleAuthorFilter(selectedAuthor);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-      transitionBuilder: (context, anim1, anim2, child) {
-        return ScaleTransition(
-          scale: CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic),
-          alignment: Alignment.bottomRight,
-          child: FadeTransition(
-            opacity: CurvedAnimation(parent: anim1, curve: Curves.easeOut),
-            child: child,
-          ),
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DetailsPopupContent(
+          quote: quote,
+          buildTagChip: _buildTagChip,
+          buildAuthorChip: _buildAuthorChip,
+          onTagToggled: _toggleTagFilter,
+          onAuthorToggled: _toggleAuthorFilter,
         );
       },
     );
@@ -1045,100 +660,27 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
   Widget _buildAuthorChip(String authorName, {void Function(String)? onTap}) {
     final bool isSelected = _selectedAuthors.contains(authorName);
 
-    return GestureDetector(
-      onTap: () {
+    return AuthorChip(
+      authorName: authorName,
+      isSelected: isSelected,
+      onTap: (selectedAuthor) {
         if (onTap != null) {
           onTap(authorName);
         } else {
           _toggleAuthorFilter(authorName);
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (_isDarkMode
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.15))
-              : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(
-            color: isSelected
-                ? (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.6)
-                : (_isDarkMode ? Colors.white : Colors.black).withOpacity(0.3),
-            width: isSelected ? 1.0 : 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              authorName,
-              style: TextStyle(
-                color: isSelected
-                    ? (_isDarkMode ? Colors.white : Colors.black)
-                    : (_isDarkMode ? Colors.white70 : Colors.black87),
-                fontSize: 12.0,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontFamily: 'EBGaramond',
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6.0),
-              Icon(
-                Icons.close,
-                size: 14.0,
-                color: _isDarkMode ? Colors.white : Colors.black,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTagsDetailSection(String title, List<String> tags) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: _isDarkMode ? Colors.white70 : Colors.black87,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'EBGaramond',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8.0,
-            runSpacing: 8.0,
-            children: tags.map((tag) => _buildTagChip(tag)).toList(),
-          ),
-        ],
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     // Sync the system status bar with our app bar background to avoid the lavender tint on iOS
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: _isDarkMode
-            ? Brightness.light
-            : Brightness.dark,
-      ),
-    );
+    setSystemUIOverlayStyle(Theme.of(context).brightness == Brightness.dark);
+
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: _isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -1151,25 +693,19 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                 : 'No quotes found for the selected filters.');
 
       return Scaffold(
-        backgroundColor: _isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           title: Text(
             '',
             style: TextStyle(
-              color: _isDarkMode ? Colors.white : Colors.black,
+              color: Theme.of(context).primaryColor,
               fontFamily: 'EBGaramond',
             ),
           ),
-          backgroundColor: _isDarkMode
-              ? Colors.black
-              : const Color.fromARGB(255, 240, 234, 225),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
           scrolledUnderElevation: 0.0,
-          iconTheme: IconThemeData(
-            color: _isDarkMode ? Colors.white : Colors.black,
-          ),
+          iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
         ),
         drawer: _buildDrawer(context),
         body: Center(
@@ -1181,7 +717,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               style: TextStyle(
                 fontSize: 18,
                 fontFamily: 'EBGaramond',
-                color: _isDarkMode ? Colors.white : Colors.black,
+                color: Theme.of(context).primaryColor,
               ),
             ),
           ),
@@ -1190,9 +726,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
     }
 
     return Scaffold(
-      backgroundColor: _isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Main content area
@@ -1211,6 +745,12 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                           final item = _pageViewItems[index];
                           if (item is Quote) {
                             final quoteId = item.id;
+                            _viewCounts.update(
+                              quoteId,
+                              (value) => value + 1,
+                              ifAbsent: () => 1,
+                            );
+                            _saveViewCounts();
                             setState(() {
                               _currentIndex = _quotes.indexOf(item);
                               if (!_seenQuoteIds.contains(quoteId)) {
@@ -1218,12 +758,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                                 _updatePageViewItems();
                               }
                             });
-                            _saveViewCounts();
-                            _viewCounts.update(
-                              quoteId,
-                              (value) => value + 1,
-                              ifAbsent: () => 1,
-                            );
                           }
                         }
                       },
@@ -1241,142 +775,77 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
                       },
                       itemCount: _pageViewItems.length,
                     ),
-                    _buildDetailsCard(_quotes[_currentIndex]),
+                    DetailsCard(
+                      quote: _quotes[_currentIndex],
+                      onHide: _hideSecondPage,
+                      buildTagChip: _buildTagChip,
+                      controller: _detailsScrollController,
+                    ),
                   ],
                 ),
               ),
 
+              // Active Filters Bar
+              ActiveFiltersBar(
+                selectedTags: _selectedTags,
+                selectedAuthors: _selectedAuthors,
+                isFavoritesMode: _isFavoritesMode,
+                onClear: _clearFilter,
+              ),
+
               // Bottom navigation bar
-              Container(
-                width: double.infinity,
-                height: 100.0,
-                decoration: BoxDecoration(
-                  border: Border.all(width: 1, color: Colors.white38),
-                  color: _isDarkMode
-                      ? const Color.fromARGB(255, 239, 237, 231)
-                      : const Color.fromARGB(255, 224, 222, 212),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(30.0),
-                    topRight: Radius.circular(30.0),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 25.0, right: 25.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: <Widget>[
-                      IconButton(
-                        icon: const Icon(Icons.share_outlined),
-                        iconSize: 24.0,
-                        color: Colors.black,
-                        onPressed: _shareQuoteAsImage,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_downward_outlined),
-                        iconSize: 24.0,
-                        color: Colors.black,
-                        onPressed: () {
-                          _hideSecondPage();
-                          _nextQuote();
-                        },
-                      ),
-                      IconButton(
-                        icon: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              _favoriteQuotes.contains(_quotes[_currentIndex])
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color:
-                                  _favoriteQuotes.contains(
-                                    _quotes[_currentIndex],
-                                  )
-                                  ? Colors.red
-                                  : Colors.black,
-                            ),
-                            if ((_likeCounts[_quotes[_currentIndex].id] ?? 0) >
-                                1)
-                              Positioned(
-                                right: -8,
-                                top: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    'x${_likeCounts[_quotes[_currentIndex].id]}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        iconSize: 24.0,
-                        onPressed: _toggleFavoriteFromBar,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_upward_outlined),
-                        iconSize: 24.0,
-                        color: Colors.black,
-                        onPressed: () {
-                          _hideSecondPage();
-                          _previousQuote();
-                        },
-                      ),
-                      Builder(
-                        builder: (context) {
-                          return IconButton(
-                            icon: const Icon(Icons.sell_outlined),
-                            iconSize: 24.0,
-                            color: Colors.black,
-                            onPressed: () => _showDetailsPopup(context),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+              BottomActionBar(
+                currentQuote: _quotes[_currentIndex],
+                favoriteQuotes: _favoriteQuotes,
+                likeCounts: _likeCounts,
+                onShare: _shareQuoteAsImage,
+                onNext: () {
+                  _hideSecondPage();
+                  _nextQuote();
+                },
+                onPrevious: () {
+                  _hideSecondPage();
+                  _previousQuote();
+                },
+                onToggleFavorite: _toggleFavoriteFromBar,
+                onShowDetails: _showDetailsPopup,
               ),
             ],
           ),
 
           // Streak Island Overlay
-          if (_showStreakIsland)
+          if (_showStreakIsland || _awardedFeatureKey != null)
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: SafeArea(
                 bottom: false, // Don't apply SafeArea to bottom
-                child: Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(width: 0, color: Colors.transparent),
-                    ),
-                  ),
-                  child: StreakIsland(
-                    streakMessage: _streakMessage,
-                    weeklyView: _weeklyView,
-                    isDarkMode: _isDarkMode,
-                    onTap: () {
-                      // Optional: Show streak history or details
-                    },
-                    onDismiss: () {
-                      setState(() {
-                        _showStreakIsland = false;
-                      });
-                    },
-                  ),
+                child: Column(
+                  children: [
+                    if (_showStreakIsland)
+                      StreakIsland(
+                        streakMessage: _streakMessage,
+                        weeklyView: _weeklyView,
+                        onTap: () {
+                          // Optional: Show streak history or details
+                        },
+                        onDismiss: () {
+                          setState(() {
+                            _showStreakIsland = false;
+                          });
+                        },
+                      ),
+                    if (_awardedFeatureKey != null)
+                      RewardIsland(
+                        featureKey: _awardedFeatureKey!,
+                        onDismiss: () {
+                          setState(() {
+                            _awardedFeatureKey = null;
+                          });
+                        },
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1399,26 +868,32 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
         title: Text(
           'Literature Bites',
           style: TextStyle(
-            color: _isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
             fontFamily: 'EBGaramond',
           ),
         ),
-        backgroundColor: _isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0.0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        iconTheme: IconThemeData(
-          color: _isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
         actions: [
           IconButton(
-            icon: _isDarkMode
-                ? const Icon(Icons.brightness_low)
-                : const Icon(Icons.brightness_high),
-            onPressed: _toggleDarkMode,
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) {
+                  return FractionallySizedBox(
+                    heightFactor: 0.75,
+                    child: const SettingsSheet(),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -1440,17 +915,23 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
           if (nextQuoteIndex < _pageViewItems.length) {
             _pageViewItems.insert(nextQuoteIndex, _InfoCardModel(id: cardId));
             _infoCardIds.add(cardId);
+            _saveInfoCardIds();
           }
         }
       }
     });
   }
 
+  Future<void> _saveInfoCardIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('infoCardIds', _infoCardIds.toList());
+  }
+
   Widget _buildInfoCard() {
     String title = 'Did You Know?';
     String message;
     List<Widget> actions = [];
-    final cardColor = _isDarkMode
+    final cardColor = Theme.of(context).brightness == Brightness.dark
         ? const Color.fromARGB(255, 239, 237, 231)
         : const Color.fromARGB(255, 224, 222, 212);
 
@@ -1534,6 +1015,14 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               _navigateToProfile();
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.star_outline),
+            title: const Text("Rewards & Passes"),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToRewardsCenter();
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.explore),
@@ -1549,7 +1038,7 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               color: _isFavoritesMode ? Colors.redAccent : null,
             ),
             title: Text("Your Favorites (${_favoriteQuotes.length})"),
-            selectedTileColor: _isDarkMode
+            selectedTileColor: Theme.of(context).brightness == Brightness.dark
                 ? Colors.grey.withOpacity(0.3)
                 : Colors.black.withOpacity(0.08),
             selected: _isFavoritesMode,
@@ -1605,10 +1094,6 @@ class QuoteAppState extends State<QuoteApp> with TickerProviderStateMixin {
               Navigator.pop(context);
               _navigateToAbout();
             },
-          ),
-          const ListTile(
-            leading: Icon(Icons.share_outlined),
-            title: Text("Share"),
           ),
         ],
       ),

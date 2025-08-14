@@ -6,14 +6,12 @@ import 'package:quotes_app/quote_quiz_page.dart';
 import 'quote.dart';
 
 class LearnHubPage extends StatelessWidget {
-  final bool isDarkMode;
   final List<Quote> allQuotes;
   final List<Quote> favoriteQuotes;
   final Map<String, int> viewCounts;
 
   const LearnHubPage({
     super.key,
-    required this.isDarkMode,
     required this.allQuotes,
     required this.favoriteQuotes,
     required this.viewCounts,
@@ -22,24 +20,18 @@ class LearnHubPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'Learn',
           style: TextStyle(
             fontFamily: 'Georgia',
-            color: isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
           ),
         ),
-        backgroundColor: isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -62,14 +54,11 @@ class LearnHubPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => FlashcardsPage(
-                        favoriteQuotes: favoriteQuotes,
-                        isDarkMode: isDarkMode,
-                      ),
+                      builder: (context) =>
+                          FlashcardsPage(favoriteQuotes: favoriteQuotes),
                     ),
                   );
                 },
-                isDarkMode: isDarkMode,
               ),
               _buildLearnModeCard(
                 context,
@@ -83,12 +72,10 @@ class LearnHubPage extends StatelessWidget {
                       builder: (context) => AuthorQuizPage(
                         favoriteQuotes: favoriteQuotes,
                         allQuotes: allQuotes,
-                        isDarkMode: isDarkMode,
                       ),
                     ),
                   );
                 },
-                isDarkMode: isDarkMode,
               ),
               _buildLearnModeCard(
                 context,
@@ -102,12 +89,10 @@ class LearnHubPage extends StatelessWidget {
                       builder: (context) => QuoteQuizPage(
                         favoriteQuotes: favoriteQuotes,
                         allQuotes: allQuotes,
-                        isDarkMode: isDarkMode,
                       ),
                     ),
                   );
                 },
-                isDarkMode: isDarkMode,
               ),
             ],
           ),
@@ -127,7 +112,6 @@ class LearnHubPage extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) => QuizPage(
-                isDarkMode: isDarkMode,
                 allQuotes: allQuotes,
                 favoriteQuotes: favoriteQuotes,
                 viewCounts: viewCounts,
@@ -183,12 +167,11 @@ class LearnHubPage extends StatelessWidget {
     required String title,
     required String description,
     required VoidCallback onTap,
-    required bool isDarkMode,
   }) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: isDarkMode ? Colors.grey[850] : Colors.white,
+      color: Theme.of(context).cardColor,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
@@ -201,7 +184,7 @@ class LearnHubPage extends StatelessWidget {
               Icon(
                 icon,
                 size: 36,
-                color: isDarkMode ? Colors.white70 : Colors.black54,
+                color: Theme.of(context).primaryColor.withOpacity(0.7),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,7 +195,7 @@ class LearnHubPage extends StatelessWidget {
                       fontFamily: 'Georgia',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? Colors.white : Colors.black,
+                      color: Theme.of(context).primaryColor,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -221,7 +204,7 @@ class LearnHubPage extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Georgia',
                       fontSize: 14,
-                      color: isDarkMode ? Colors.white70 : Colors.black87,
+                      color: Theme.of(context).primaryColor.withOpacity(0.8),
                     ),
                   ),
                 ],

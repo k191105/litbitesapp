@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 
 class StreakIsland extends StatefulWidget {
   final String streakMessage;
-  final List<Map<String, dynamic>> weeklyView;
+  final List<bool> weeklyView; // Updated to List<bool>
   final VoidCallback? onTap;
   final VoidCallback? onDismiss;
-  final bool isDarkMode;
 
   const StreakIsland({
     super.key,
@@ -14,7 +14,6 @@ class StreakIsland extends StatefulWidget {
     required this.weeklyView,
     this.onTap,
     this.onDismiss,
-    this.isDarkMode = false,
   });
 
   @override
@@ -73,6 +72,23 @@ class _StreakIslandState extends State<StreakIsland>
 
   @override
   Widget build(BuildContext context) {
+    // Generate the last 7 days for display
+    final now = DateTime.now();
+    final dayFormatter = DateFormat.E(); // 'E' gives short day name like 'Mon'
+    final List<Map<String, dynamic>> days = List.generate(7, (i) {
+      final date = now.subtract(Duration(days: 6 - i));
+      return {
+        'dayName': dayFormatter.format(date),
+        'isToday':
+            date.day == now.day &&
+            date.month == now.month &&
+            date.year == now.year,
+        'isCompleted': widget.weeklyView.length > i
+            ? widget.weeklyView[i]
+            : false,
+      };
+    }).toList();
+
     return SlideTransition(
       position: _slideAnimation,
       child: GestureDetector(
@@ -81,9 +97,7 @@ class _StreakIslandState extends State<StreakIsland>
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? const Color(0xFF2A2A2A)
-                : const Color(0xFFF8F6F0),
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20.0),
             boxShadow: [
               BoxShadow(
@@ -93,12 +107,7 @@ class _StreakIslandState extends State<StreakIsland>
                 offset: const Offset(0, 4),
               ),
             ],
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.grey.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Theme.of(context).dividerColor, width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -109,7 +118,7 @@ class _StreakIslandState extends State<StreakIsland>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: widget.isDarkMode ? Colors.white : Colors.black,
+                  color: Theme.of(context).primaryColor,
                   fontFamily: 'EBGaramond',
                 ),
               ),
@@ -118,7 +127,7 @@ class _StreakIslandState extends State<StreakIsland>
               // Weekly view
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: widget.weeklyView.map((day) {
+                children: days.map((day) {
                   return _buildDayIndicator(day);
                 }).toList(),
               ),
@@ -132,7 +141,8 @@ class _StreakIslandState extends State<StreakIsland>
   Widget _buildDayIndicator(Map<String, dynamic> day) {
     final isCompleted = day['isCompleted'] as bool;
     final isToday = day['isToday'] as bool;
-    final dayName = day['day'] as String;
+    final dayName = day['dayName'] as String; // Changed from 'day' to 'dayName'
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -144,12 +154,8 @@ class _StreakIslandState extends State<StreakIsland>
             fontSize: 12,
             fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
             color: isToday
-                ? (widget.isDarkMode
-                      ? Colors.orange.shade300
-                      : Colors.orange.shade700)
-                : (widget.isDarkMode
-                      ? Colors.grey.shade400
-                      : Colors.grey.shade600),
+                ? (isDark ? Colors.orange.shade300 : Colors.orange.shade700)
+                : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
             fontFamily: 'EBGaramond',
           ),
         ),
@@ -163,14 +169,10 @@ class _StreakIslandState extends State<StreakIsland>
             shape: BoxShape.circle,
             color: isCompleted
                 ? Colors.orange.shade200
-                : (widget.isDarkMode
-                      ? Colors.grey.shade700
-                      : Colors.grey.shade300),
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
             border: Border.all(
               color: isToday
-                  ? (widget.isDarkMode
-                        ? Colors.orange.shade300
-                        : Colors.orange.shade700)
+                  ? (isDark ? Colors.orange.shade300 : Colors.orange.shade700)
                   : Colors.transparent,
               width: isToday ? 2 : 0,
             ),

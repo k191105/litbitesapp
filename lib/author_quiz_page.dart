@@ -7,13 +7,11 @@ import 'quote.dart';
 class AuthorQuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
   final List<Quote> allQuotes;
-  final bool isDarkMode;
 
   const AuthorQuizPage({
     super.key,
     required this.favoriteQuotes,
     required this.allQuotes,
-    required this.isDarkMode,
   });
 
   @override
@@ -73,10 +71,8 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = widget.isDarkMode
-        ? Colors.black
-        : const Color.fromARGB(255, 240, 234, 225);
-    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
+    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).primaryColor;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -168,7 +164,9 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
                 ),
                 color:
                     tileColor ??
-                    (widget.isDarkMode ? Colors.grey[850] : Colors.white),
+                    (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[850]
+                        : Colors.white),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
@@ -202,12 +200,8 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.isDarkMode
-                    ? Colors.white
-                    : Colors.black,
-                foregroundColor: widget.isDarkMode
-                    ? Colors.black
-                    : Colors.white,
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Theme.of(context).scaffoldBackgroundColor,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _generateQuestion,

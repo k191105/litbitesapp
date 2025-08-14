@@ -56,13 +56,11 @@ const List<String> _curatedAuthors = [
 
 class BrowseByAuthorPage extends StatefulWidget {
   final List<Quote> allQuotes;
-  final bool isDarkMode;
   final Set<String> initialSelectedAuthors;
 
   const BrowseByAuthorPage({
     super.key,
     required this.allQuotes,
-    required this.isDarkMode,
     required this.initialSelectedAuthors,
   });
 
@@ -137,15 +135,13 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'Browse by Author',
           style: TextStyle(
             fontFamily: 'Georgia',
-            color: widget.isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
           ),
         ),
         actions: [
@@ -157,20 +153,16 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
             child: Text(
               'Done',
               style: TextStyle(
-                color: widget.isDarkMode ? Colors.white : Colors.black,
+                color: Theme.of(context).primaryColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ],
-        backgroundColor: widget.isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: widget.isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -184,8 +176,7 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
                 hintText: 'Search for an author...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: (widget.isDarkMode ? Colors.white : Colors.black)
-                    .withOpacity(0.05),
+                fillColor: Theme.of(context).primaryColor.withOpacity(0.05),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -252,9 +243,7 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
           fontFamily: 'EBGaramond',
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: (widget.isDarkMode ? Colors.white : Colors.black).withOpacity(
-            0.5,
-          ),
+          color: Theme.of(context).primaryColor.withOpacity(0.5),
         ),
       ),
     );
@@ -267,7 +256,7 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
         author.name,
         style: TextStyle(
           fontFamily: 'EBGaramond',
-          color: widget.isDarkMode ? Colors.white : Colors.black,
+          color: Theme.of(context).primaryColor,
         ),
       ),
       trailing: Checkbox(
@@ -281,8 +270,8 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
             }
           });
         },
-        activeColor: widget.isDarkMode ? Colors.white : Colors.black,
-        checkColor: widget.isDarkMode ? Colors.black : Colors.white,
+        activeColor: Theme.of(context).primaryColor,
+        checkColor: Theme.of(context).scaffoldBackgroundColor,
       ),
       onTap: () {
         setState(() {

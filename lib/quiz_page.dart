@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/quiz_models.dart';
 import 'package:quotes_app/quiz_service.dart';
-import 'quote.dart';
+import 'package:quotes_app/quote.dart';
 import 'srs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class QuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
   final List<Quote> allQuotes;
-  final bool isDarkMode;
   final Map<String, int> viewCounts;
 
   const QuizPage({
     super.key,
     required this.favoriteQuotes,
     required this.allQuotes,
-    required this.isDarkMode,
     required this.viewCounts,
   });
 
@@ -65,20 +63,14 @@ class _QuizPageState extends State<QuizPage> {
           'Comprehensive Quiz',
           style: TextStyle(
             fontFamily: 'Georgia',
-            color: widget.isDarkMode ? Colors.white : Colors.black,
+            color: Theme.of(context).primaryColor,
           ),
         ),
-        backgroundColor: widget.isDarkMode
-            ? Colors.black
-            : const Color.fromARGB(255, 240, 234, 225),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: widget.isDarkMode ? Colors.white : Colors.black,
-        ),
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
-      backgroundColor: widget.isDarkMode
-          ? Colors.black
-          : const Color.fromARGB(255, 240, 234, 225),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _questions.isEmpty
           ? Center(
               child: Text(
@@ -108,7 +100,7 @@ class _QuizPageState extends State<QuizPage> {
               fontSize: 32,
               fontWeight: FontWeight.bold,
               fontFamily: 'Georgia',
-              color: widget.isDarkMode ? Colors.white : Colors.black,
+              color: Theme.of(context).primaryColor,
             ),
           ),
           const SizedBox(height: 24),
@@ -117,7 +109,7 @@ class _QuizPageState extends State<QuizPage> {
             style: TextStyle(
               fontSize: 20,
               fontFamily: 'Georgia',
-              color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+              color: Theme.of(context).primaryColor.withOpacity(0.7),
             ),
           ),
           Text(
@@ -126,7 +118,7 @@ class _QuizPageState extends State<QuizPage> {
               fontSize: 48,
               fontWeight: FontWeight.bold,
               fontFamily: 'Georgia',
-              color: widget.isDarkMode ? Colors.white : Colors.black,
+              color: Theme.of(context).primaryColor,
             ),
           ),
           Text(
@@ -141,8 +133,8 @@ class _QuizPageState extends State<QuizPage> {
           const SizedBox(height: 48),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: widget.isDarkMode ? Colors.white : Colors.black,
-              foregroundColor: widget.isDarkMode ? Colors.black : Colors.white,
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Theme.of(context).scaffoldBackgroundColor,
               minimumSize: const Size(200, 50),
               textStyle: const TextStyle(fontSize: 16, fontFamily: 'Georgia'),
             ),
@@ -155,7 +147,7 @@ class _QuizPageState extends State<QuizPage> {
             child: Text(
               'Back to Learn Hub',
               style: TextStyle(
-                color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                color: Theme.of(context).primaryColor.withOpacity(0.7),
                 fontFamily: 'Georgia',
               ),
             ),
@@ -167,7 +159,7 @@ class _QuizPageState extends State<QuizPage> {
 
   Widget _buildQuizUI() {
     final question = _questions[_currentQuestionIndex];
-    final isCorrect = _selectedAnswer == question.correctAnswer;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       children: [
@@ -186,7 +178,7 @@ class _QuizPageState extends State<QuizPage> {
                 'Question ${_currentQuestionIndex + 1} of ${_questions.length}  |  Score: $_score',
                 style: TextStyle(
                   fontFamily: 'Georgia',
-                  color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                  color: Theme.of(context).primaryColor.withOpacity(0.7),
                 ),
               ),
             ],
@@ -200,7 +192,7 @@ class _QuizPageState extends State<QuizPage> {
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
-              color: widget.isDarkMode
+              color: isDark
                   ? Colors.white.withOpacity(0.1)
                   : Colors.black.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
@@ -212,7 +204,7 @@ class _QuizPageState extends State<QuizPage> {
                 fontSize: 20,
                 fontFamily: 'Georgia',
                 fontStyle: FontStyle.italic,
-                color: widget.isDarkMode ? Colors.white : Colors.black,
+                color: Theme.of(context).primaryColor,
               ),
             ),
           ),
@@ -230,9 +222,7 @@ class _QuizPageState extends State<QuizPage> {
               fontSize: 18,
               fontFamily: 'Georgia',
               fontWeight: FontWeight.bold,
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.9)
-                  : Colors.black.withOpacity(0.9),
+              color: Theme.of(context).primaryColor.withOpacity(0.9),
             ),
           ),
         ),
@@ -260,9 +250,7 @@ class _QuizPageState extends State<QuizPage> {
                   vertical: 6.0,
                   horizontal: 16.0,
                 ),
-                color:
-                    tileColor ??
-                    (widget.isDarkMode ? Colors.grey[850] : Colors.white),
+                color: tileColor ?? (isDark ? Colors.grey[850] : Colors.white),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
@@ -277,7 +265,7 @@ class _QuizPageState extends State<QuizPage> {
                     option,
                     style: TextStyle(
                       fontFamily: 'Georgia',
-                      color: widget.isDarkMode ? Colors.white : Colors.black,
+                      color: Theme.of(context).primaryColor,
                     ),
                   ),
                   trailing: icon != null
@@ -299,12 +287,8 @@ class _QuizPageState extends State<QuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.isDarkMode
-                    ? Colors.white
-                    : Colors.black,
-                foregroundColor: widget.isDarkMode
-                    ? Colors.black
-                    : Colors.white,
+                backgroundColor: isDark ? Colors.white : Colors.black,
+                foregroundColor: isDark ? Colors.black : Colors.white,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _nextQuestion,
