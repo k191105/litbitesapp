@@ -16,7 +16,6 @@ class ProfileRewardsPage extends StatefulWidget {
 class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   late Future<RewardsSnapshot> _rewardsFuture;
   int? _longestStreak; // TODO: Track this properly
-  int _quotesRead = 0;
   int _favoriteQuotesCount = 0;
 
   @override
@@ -35,9 +34,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   Future<void> _loadStats() async {
     final prefs = await SharedPreferences.getInstance();
     final favoriteIds = prefs.getStringList('favoriteQuoteIds') ?? [];
-    final seenIds = prefs.getStringList('seenQuoteIds') ?? [];
     setState(() {
-      _quotesRead = seenIds.length;
       _favoriteQuotesCount = favoriteIds.length;
     });
   }
@@ -200,19 +197,20 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   Widget _buildActivePasses(List<ActivePass> passes, {required bool isPro}) {
     if (isPro) {
       final proFeatures = [
-        'Search',
-        'Browse by Tag',
+        'Premium Quote Library',
+        'Browse by Author',
         'Browse by Period',
+        'Curated Author Collections',
         'Premium Themes',
         'Premium Fonts',
-        'Share Styles',
-        'SRS Unlimited',
+        'Personalised Notifications',
+        'Personalised Learning',
       ];
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'All Features Unlocked',
+            'All Pro Features Unlocked',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
@@ -451,27 +449,26 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   }
 
   Widget _buildFooter() {
-    return Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        TextButton(
-          onPressed: () {
-            // TODO: Implement rewards history
-          },
-          child: const Text('View rewards history'),
+        Expanded(
+          child: TextButton(
+            onPressed: () {
+              // TODO: Implement restore purchases
+            },
+            child: const Text('Restore purchases'),
+          ),
         ),
-        TextButton(
-          onPressed: () {
-            // TODO: Implement restore purchases
-          },
-          child: const Text('Restore purchases'),
-        ),
-        TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Coming soon')));
-          },
-          child: const Text('Manage Subscription'),
+        Expanded(
+          child: TextButton(
+            onPressed: () {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Coming soon')));
+            },
+            child: const Text('Manage Subscription'),
+          ),
         ),
       ],
     );

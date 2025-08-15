@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:quotes_app/theme/lb_theme_extension.dart';
 
 class TagChip extends StatelessWidget {
   final String tag;
@@ -14,7 +15,9 @@ class TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final lbTheme = Theme.of(context).extension<LBTheme>();
+    final colorScheme = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: () {
         if (onTap != null) {
@@ -25,15 +28,14 @@ class TagChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.15))
-              : (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+              ? colorScheme.primary.withOpacity(0.12)
+              : lbTheme?.controlSurface ?? colorScheme.surface,
           borderRadius: BorderRadius.circular(16.0),
           border: Border.all(
             color: isSelected
-                ? (isDark ? Colors.white : Colors.black).withOpacity(0.6)
-                : (isDark ? Colors.white : Colors.black).withOpacity(0.3),
+                ? colorScheme.primary
+                : lbTheme?.controlBorder ??
+                      colorScheme.outline.withOpacity(0.3),
             width: isSelected ? 1.0 : 0.5,
           ),
         ),
@@ -42,22 +44,17 @@ class TagChip extends StatelessWidget {
           children: [
             Text(
               tag,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: isSelected
-                    ? (isDark ? Colors.white : Colors.black)
-                    : (isDark ? Colors.white70 : Colors.black87),
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withOpacity(0.7),
                 fontSize: 12.0,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontFamily: 'EBGaramond',
               ),
             ),
             if (isSelected) ...[
               const SizedBox(width: 6.0),
-              Icon(
-                Icons.close,
-                size: 14.0,
-                color: isDark ? Colors.white : Colors.black,
-              ),
+              Icon(Icons.close, size: 14.0, color: colorScheme.primary),
             ],
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 import '../quote.dart';
 
@@ -48,13 +49,19 @@ class BottomActionBar extends StatelessWidget {
               icon: const Icon(Icons.share_outlined),
               iconSize: 24.0,
               color: lbTheme.controlOnSurface,
-              onPressed: onShare,
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                onShare();
+              },
             ),
             IconButton(
               icon: const Icon(Icons.arrow_downward_outlined),
               iconSize: 24.0,
               color: lbTheme.controlOnSurface,
-              onPressed: onNext,
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                onNext();
+              },
             ),
             IconButton(
               icon: Stack(
@@ -94,13 +101,19 @@ class BottomActionBar extends StatelessWidget {
                 ],
               ),
               iconSize: 24.0,
-              onPressed: onToggleFavorite,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                onToggleFavorite();
+              },
             ),
             IconButton(
               icon: const Icon(Icons.arrow_upward_outlined),
               iconSize: 24.0,
               color: lbTheme.controlOnSurface,
-              onPressed: onPrevious,
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                onPrevious();
+              },
             ),
             Builder(
               builder: (context) {
@@ -108,7 +121,10 @@ class BottomActionBar extends StatelessWidget {
                   icon: const Icon(Icons.sell_outlined),
                   iconSize: 24.0,
                   color: lbTheme.controlOnSurface,
-                  onPressed: () => onShowDetails(context),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onShowDetails(context);
+                  },
                 );
               },
             ),

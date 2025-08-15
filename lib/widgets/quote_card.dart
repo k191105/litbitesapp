@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../quote.dart';
 import '../utils/font_size_helpers.dart';
+import '../theme/lb_theme_extension.dart';
 
 class QuoteCard extends StatelessWidget {
   final Quote quote;
@@ -18,8 +20,13 @@ class QuoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lbTheme = Theme.of(context).extension<LBTheme>();
+
     return GestureDetector(
-      onDoubleTap: onDoubleTap,
+      onDoubleTap: () {
+        HapticFeedback.lightImpact();
+        onDoubleTap();
+      },
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -41,13 +48,19 @@ class QuoteCard extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           quote.text,
-                          style: TextStyle(
-                            fontSize: getFontSize(quote.text),
-                            fontWeight: FontWeight.w500,
-                            fontFamily: "EBGaramond",
-                            color: Theme.of(context).primaryColor,
-                            height: 1.4,
-                          ),
+                          style:
+                              lbTheme?.quoteTextStyle(
+                                context,
+                                getFontSize(quote.text),
+                              ) ??
+                              Theme.of(
+                                context,
+                              ).textTheme.headlineSmall!.copyWith(
+                                fontSize: getFontSize(quote.text),
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context).primaryColor,
+                                height: 1.4,
+                              ),
                           textAlign: TextAlign.left,
                         ),
                       ),
@@ -63,12 +76,16 @@ class QuoteCard extends StatelessWidget {
                         alignment: Alignment.centerRight,
                         child: Text(
                           '— ${quote.authorInfo}',
-                          style: TextStyle(
-                            fontSize: getSourceFontSize(quote.authorInfo),
-                            fontWeight: FontWeight.w300,
-                            color: const Color.fromARGB(255, 166, 165, 165),
-                            fontFamily: "EBGaramond",
-                          ),
+                          style:
+                              lbTheme?.authorTextStyle(
+                                context,
+                                getSourceFontSize(quote.authorInfo),
+                              ) ??
+                              Theme.of(context).textTheme.titleSmall!.copyWith(
+                                fontSize: getSourceFontSize(quote.authorInfo),
+                                fontWeight: FontWeight.w300,
+                                color: const Color.fromARGB(255, 166, 165, 165),
+                              ),
                           textAlign: TextAlign.right,
                         ),
                       ),
@@ -81,14 +98,26 @@ class QuoteCard extends StatelessWidget {
                           alignment: Alignment.centerRight,
                           child: Text(
                             quote.displaySource,
-                            style: TextStyle(
-                              fontSize:
+                            style:
+                                lbTheme?.sourceTextStyle(
+                                  context,
                                   getSourceFontSize(quote.displaySource) - 2,
-                              fontWeight: FontWeight.w300,
-                              color: const Color.fromARGB(255, 140, 140, 140),
-                              fontFamily: "EBGaramond",
-                              fontStyle: FontStyle.italic,
-                            ),
+                                ) ??
+                                Theme.of(
+                                  context,
+                                ).textTheme.labelLarge!.copyWith(
+                                  fontSize:
+                                      getSourceFontSize(quote.displaySource) -
+                                      2,
+                                  fontWeight: FontWeight.w300,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    140,
+                                    140,
+                                    140,
+                                  ),
+                                  fontStyle: FontStyle.italic,
+                                ),
                             textAlign: TextAlign.right,
                           ),
                         ),
@@ -96,7 +125,10 @@ class QuoteCard extends StatelessWidget {
                     ],
                     const SizedBox(height: 24),
                     OutlinedButton(
-                      onPressed: onReadMore,
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        onReadMore();
+                      },
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30.0),
@@ -114,10 +146,11 @@ class QuoteCard extends StatelessWidget {
                       ),
                       child: Text(
                         'Read more »',
-                        style: TextStyle(
-                          fontFamily: "EBGaramond",
-                          color: Theme.of(context).primaryColor,
-                        ),
+                        style:
+                            lbTheme?.buttonTextStyle(context) ??
+                            Theme.of(context).textTheme.labelLarge!.copyWith(
+                              color: Theme.of(context).primaryColor,
+                            ),
                       ),
                     ),
                   ],

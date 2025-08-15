@@ -4,6 +4,7 @@ import 'package:quotes_app/quiz_service.dart';
 import 'package:quotes_app/quote.dart';
 import 'srs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lottie/lottie.dart';
 
 class QuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
@@ -73,16 +74,31 @@ class _QuizPageState extends State<QuizPage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _questions.isEmpty
           ? Center(
-              child: Text(
-                widget.favoriteQuotes.isEmpty
-                    ? 'You need to favorite some quotes to start a quiz!'
-                    : 'Loading quiz...',
-                style: const TextStyle(fontFamily: 'Georgia', fontSize: 18),
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.favorite_border,
+                      size: 64,
+                      color: Theme.of(context).primaryColor.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'You need to favorite some quotes to start a quiz!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Georgia',
+                        fontSize: 18,
+                        color: Theme.of(context).primaryColor.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
-          : isFinished
-          ? _buildResultsUI()
-          : _buildQuizUI(),
+          : (isFinished ? _buildResultsUI() : _buildQuizUI()),
     );
   }
 
@@ -91,67 +107,79 @@ class _QuizPageState extends State<QuizPage> {
         ? (_score / _questions.length) * 100
         : 0;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
         children: [
-          Text(
-            'Quiz Complete!',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Georgia',
-              color: Theme.of(context).primaryColor,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Your Score',
-            style: TextStyle(
-              fontSize: 20,
-              fontFamily: 'Georgia',
-              color: Theme.of(context).primaryColor.withOpacity(0.7),
-            ),
-          ),
-          Text(
-            '$_score / ${_questions.length}',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Georgia',
-              color: Theme.of(context).primaryColor,
-            ),
-          ),
-          Text(
-            '${percentage.toStringAsFixed(1)}%',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Georgia',
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 48),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Theme.of(context).scaffoldBackgroundColor,
-              minimumSize: const Size(200, 50),
-              textStyle: const TextStyle(fontSize: 16, fontFamily: 'Georgia'),
-            ),
-            onPressed: _startQuiz,
-            child: const Text('Retake Quiz'),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Back to Learn Hub',
-              style: TextStyle(
-                color: Theme.of(context).primaryColor.withOpacity(0.7),
-                fontFamily: 'Georgia',
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Quiz Complete!',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Georgia',
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
-            ),
+              const SizedBox(height: 24),
+              Text(
+                'Your Score',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontFamily: 'Georgia',
+                  color: Theme.of(context).primaryColor.withOpacity(0.7),
+                ),
+              ),
+              Text(
+                '$_score / ${_questions.length}',
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Georgia',
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+              Text(
+                '${percentage.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Georgia',
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  minimumSize: const Size(200, 50),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Georgia',
+                  ),
+                ),
+                onPressed: _startQuiz,
+                child: const Text('Retake Quiz'),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Back to Learn Hub',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor.withOpacity(0.7),
+                    fontFamily: 'Georgia',
+                  ),
+                ),
+              ),
+            ],
           ),
+          if (percentage > 80)
+            Align(
+              alignment: Alignment.center,
+              child: Lottie.asset('assets/confetti.json', repeat: false),
+            ),
         ],
       ),
     );
@@ -170,8 +198,12 @@ class _QuizPageState extends State<QuizPage> {
             children: [
               LinearProgressIndicator(
                 value: (_currentQuestionIndex + 1) / _questions.length,
-                backgroundColor: Colors.grey[300],
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surface.withOpacity(0.5),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -237,10 +269,14 @@ class _QuizPageState extends State<QuizPage> {
               IconData? icon;
               if (_answered) {
                 if (option == question.correctAnswer) {
-                  tileColor = Colors.green.withOpacity(0.2);
+                  tileColor = Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.2);
                   icon = Icons.check_circle;
                 } else if (option == _selectedAnswer) {
-                  tileColor = Colors.red.withOpacity(0.2);
+                  tileColor = Theme.of(
+                    context,
+                  ).colorScheme.error.withOpacity(0.2);
                   icon = Icons.cancel;
                 }
               }
@@ -255,7 +291,7 @@ class _QuizPageState extends State<QuizPage> {
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
                     color: _answered && option == question.correctAnswer
-                        ? Colors.green
+                        ? Theme.of(context).colorScheme.primary
                         : Colors.transparent,
                     width: 1,
                   ),
@@ -272,8 +308,8 @@ class _QuizPageState extends State<QuizPage> {
                       ? Icon(
                           icon,
                           color: option == question.correctAnswer
-                              ? Colors.green
-                              : Colors.red,
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.error,
                         )
                       : null,
                   onTap: () => _handleAnswer(option),
@@ -287,8 +323,8 @@ class _QuizPageState extends State<QuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? Colors.white : Colors.black,
-                foregroundColor: isDark ? Colors.black : Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.onBackground,
+                foregroundColor: Theme.of(context).colorScheme.background,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _nextQuestion,
@@ -316,7 +352,11 @@ class _QuizPageState extends State<QuizPage> {
       if (isCorrect) {
         _score++;
       }
-      _srsService.updateQuote(question.quote.id, isCorrect);
+      _srsService.grade(
+        question.quote.id,
+        correct: isCorrect,
+        today: DateTime.now(),
+      );
     });
   }
 

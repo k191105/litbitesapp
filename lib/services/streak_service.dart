@@ -23,7 +23,7 @@ class StreakService {
   // Feature pass mapping
   static const _milestoneRewards = {
     7: ['search'],
-    14: ['browse_tags', 'browse_period'],
+    14: ['browse_period'], // Removed browse_tags as it's now free
     21: ['premium_themes'],
     30: ['premium_fonts'],
   };

@@ -49,8 +49,8 @@ class RewardsService {
   RewardsService._();
 
   static const _featureDisplayNames = {
-    EntitlementsService.search: 'Search',
     EntitlementsService.browseTags: 'Browse by Tag',
+    EntitlementsService.browseAuthor: 'Browse by Author',
     EntitlementsService.browsePeriod: 'Browse by Period',
     EntitlementsService.premiumThemes: 'Premium Themes',
     EntitlementsService.premiumFonts: 'Premium Fonts',
@@ -59,17 +59,18 @@ class RewardsService {
   };
 
   static final _proFeatures = [
-    EntitlementsService.browseTags,
+    EntitlementsService.browseAuthor, // Now gated
     EntitlementsService.browsePeriod,
     EntitlementsService.premiumThemes,
     EntitlementsService.premiumFonts,
     EntitlementsService.premiumShareStyles,
     EntitlementsService.srsUnlimited,
+    // Note: browseTags removed as it's now free
   ];
 
   static const _milestoneRewards = {
-    7: [EntitlementsService.search],
-    14: [EntitlementsService.browseTags, EntitlementsService.browsePeriod],
+    7: [EntitlementsService.browseAuthor],
+    14: [EntitlementsService.browsePeriod],
     21: [EntitlementsService.premiumThemes],
     30: [EntitlementsService.premiumFonts],
   };
@@ -82,7 +83,13 @@ class RewardsService {
     final activePasses = <ActivePass>[];
     if (!isPro) {
       final activeKeys = await EntitlementsService.instance.activeFeatureKeys();
+      // Define features that are now free (don't show passes for these)
+      final freeFeatures = {EntitlementsService.browseTags};
+
       for (final key in activeKeys) {
+        // Skip showing passes for features that are now free
+        if (freeFeatures.contains(key)) continue;
+
         final remaining = await EntitlementsService.instance.timeRemaining(key);
         if (remaining != null && !remaining.isNegative) {
           activePasses.add(
@@ -135,14 +142,19 @@ class RewardsService {
 
   List<String> _getFeaturesForMilestone(int milestone) {
     if (milestone == 7) {
-      return [_proFeatures[Random().nextInt(_proFeatures.length)]];
+      return [EntitlementsService.browseAuthor];
     }
     var key = milestone;
     if (!_milestoneRewards.containsKey(key)) {
       if (key > 30) {
-        final rewardKeys = _milestoneRewards.keys.toList();
+        final rewardKeys = [
+          EntitlementsService.browseAuthor,
+          EntitlementsService.browsePeriod,
+          EntitlementsService.premiumThemes,
+          EntitlementsService.premiumFonts,
+        ];
         final cycleIndex = ((key - 31) ~/ 7) % rewardKeys.length;
-        key = rewardKeys[cycleIndex];
+        return [rewardKeys[cycleIndex]];
       }
     }
     return _milestoneRewards[key] ?? [];

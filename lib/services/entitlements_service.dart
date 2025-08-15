@@ -11,16 +11,16 @@ class EntitlementsService {
   static const _isProKey = 'isPro';
   static const _proSinceKey = 'proSince';
   static const _featurePassesKey = 'featurePasses';
-  static const _versionKey = 'version';
 
   // Feature Keys
-  static const String search = 'search';
   static const String browseTags = 'browse_tags';
+  static const String browseAuthor = 'browse_author';
   static const String browsePeriod = 'browse_period';
   static const String premiumThemes = 'premium_themes';
   static const String premiumFonts = 'premium_fonts';
   static const String premiumShareStyles = 'premium_share_styles';
   static const String srsUnlimited = 'srs_unlimited';
+  static const String learnTrainer = 'learn_trainer';
 
   EntitlementsService._();
 
@@ -41,7 +41,6 @@ class EntitlementsService {
     }
     // Default entitlements
     return {
-      _versionKey: 1,
       _isProKey: false,
       _proSinceKey: null,
       _featurePassesKey: <String, String>{},
@@ -69,6 +68,11 @@ class EntitlementsService {
   Future<bool> isPro() async {
     final entitlements = await _loadEntitlements();
     return entitlements['isPro'] as bool;
+  }
+
+  /// Helper for Pro-only features that don't have Feature Passes
+  Future<bool> isProOnlyFeature(String key) async {
+    return await isPro();
   }
 
   Future<void> clearExpiredPasses() async {

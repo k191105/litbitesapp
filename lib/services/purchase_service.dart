@@ -3,8 +3,7 @@ import 'package:quotes_app/services/entitlements_service.dart';
 
 enum PurchasePlan {
   monthly('monthly'),
-  annual('annual'),
-  lifetime('lifetime');
+  annual('annual');
 
   const PurchasePlan(this.id);
   final String id;
@@ -59,8 +58,6 @@ class PurchaseService {
         return '\$4.99';
       case PurchasePlan.annual:
         return '\$29.99';
-      case PurchasePlan.lifetime:
-        return '\$79.99';
     }
   }
 
@@ -76,8 +73,6 @@ class PurchaseService {
         return 'Monthly';
       case PurchasePlan.annual:
         return 'Annual';
-      case PurchasePlan.lifetime:
-        return 'Lifetime';
     }
   }
 }

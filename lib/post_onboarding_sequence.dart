@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:quotes_app/widgets/paywall.dart';
 import 'dart:async';
 
 class PostOnboardingSequence extends StatefulWidget {
@@ -12,6 +13,8 @@ class PostOnboardingSequence extends StatefulWidget {
 
 class _PostOnboardingSequenceState extends State<PostOnboardingSequence> {
   bool _isProcessing = true;
+  int _currentStep =
+      0; // 0: processing, 1: features, 2: paywall, 3: drawer guide
 
   @override
   void initState() {
@@ -24,9 +27,20 @@ class _PostOnboardingSequenceState extends State<PostOnboardingSequence> {
       if (mounted) {
         setState(() {
           _isProcessing = false;
+          _currentStep = 1;
         });
       }
     });
+  }
+
+  void _nextStep() {
+    setState(() {
+      _currentStep++;
+    });
+  }
+
+  void _finish() {
+    widget.onFinished();
   }
 
   @override
@@ -35,11 +49,26 @@ class _PostOnboardingSequenceState extends State<PostOnboardingSequence> {
       backgroundColor: const Color.fromARGB(255, 240, 234, 225),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
-        child: _isProcessing
-            ? const ProcessingScreen()
-            : FeatureOverviewScreen(onFinished: widget.onFinished),
+        child: _buildCurrentStep(),
       ),
     );
+  }
+
+  Widget _buildCurrentStep() {
+    if (_isProcessing) {
+      return const ProcessingScreen();
+    }
+
+    switch (_currentStep) {
+      case 1:
+        return FeatureOverviewScreen(onFinished: _nextStep);
+      case 2:
+        return PaywallIntroScreen(onFinished: _nextStep);
+      case 3:
+        return DrawerGuideScreen(onFinished: _finish);
+      default:
+        return FeatureOverviewScreen(onFinished: _finish);
+    }
   }
 }
 
@@ -183,6 +212,223 @@ class FeatureOverviewScreen extends StatelessWidget {
                 fontSize: 18,
                 fontFamily: 'EBGaramond',
                 height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PaywallIntroScreen extends StatelessWidget {
+  final VoidCallback onFinished;
+
+  const PaywallIntroScreen({super.key, required this.onFinished});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            'Literature Bites is Free',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              fontFamily: 'EBGaramond',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'But it can be so much better.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontFamily: 'EBGaramond',
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 32),
+          _buildProFeature(Icons.explore, 'Browse by Author & Period'),
+          const SizedBox(height: 16),
+          _buildProFeature(Icons.school, 'Unlimited Learn Sessions'),
+          const SizedBox(height: 16),
+          _buildProFeature(Icons.palette, 'Premium Themes & Fonts'),
+          const SizedBox(height: 16),
+          _buildProFeature(Icons.notifications, 'Custom Notifications'),
+          const SizedBox(height: 48),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onFinished,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue Free',
+                    style: TextStyle(fontFamily: 'EBGaramond', fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Show the full paywall
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const Paywall(contextKey: 'profile_upgrade'),
+                      ),
+                    );
+                    // Continue regardless of paywall result
+                    onFinished();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Upgrade Now',
+                    style: TextStyle(
+                      fontFamily: 'EBGaramond',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProFeature(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 24, color: Colors.black54),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 16, fontFamily: 'EBGaramond'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DrawerGuideScreen extends StatelessWidget {
+  final VoidCallback onFinished;
+
+  const DrawerGuideScreen({super.key, required this.onFinished});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.8),
+      body: Stack(
+        children: [
+          // Highlight the drawer area
+          Positioned(
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: 80,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.5),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(Icons.menu, size: 32, color: Colors.black),
+              ),
+            ),
+          ),
+
+          // Guide text
+          Positioned(
+            top: MediaQuery.of(context).size.height * 0.2,
+            left: 100,
+            right: 32,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Access Your Dashboard',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontFamily: 'EBGaramond',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tap the menu button to access Browse, Learn, Favorites, and other useful features.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontFamily: 'EBGaramond',
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: onFinished,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Got it!',
+                        style: TextStyle(
+                          fontFamily: 'EBGaramond',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

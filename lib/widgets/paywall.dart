@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
+// import 'package:lottie/lottie.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/purchase_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,7 +20,7 @@ class Paywall extends StatefulWidget {
 
 class _PaywallState extends State<Paywall> {
   late PurchasePlan _selectedPlan;
-  bool _showLifetime = false;
+  // bool _showLifetime = false; // deprecated: lifetime removed
   bool _isLoading = false;
 
   @override
@@ -31,17 +31,17 @@ class _PaywallState extends State<Paywall> {
   }
 
   Map<String, List<String>> get _contextualBullets => {
-    'search': [
-      'Search the entire library (~5,000 quotes)',
-      'Advanced Browse features',
-      'Filter by author or tag',
-      'Personalised learning',
-    ],
     'browse_tags': [
       'Unlock all tags and eras',
       'Open the full library (~5,000 quotes)',
       'Follow interests deeper with Tag/Period',
       'Add your own quotes and notes',
+    ],
+    'browse_author': [
+      'Browse by author A–Z',
+      'Deep author collections',
+      'Full library access (~5,000 quotes)',
+      'Discover new voices',
     ],
     'browse_period': [
       'Browse by Period (Romanticism → Modernism)',
@@ -74,6 +74,24 @@ class _PaywallState extends State<Paywall> {
       'All premium customization',
       'Trainer + unlimited reviews',
     ],
+    'learn_trainer': [
+      'Guided sessions tailored to you',
+      'Adaptive difficulty',
+      'Review mistakes faster',
+      'Master quotes with spaced repetition',
+    ],
+    'srs_unlimited': [
+      'Unlimited daily reviews',
+      'Master quotes with spaced repetition',
+      'Track your progress',
+      'Build lasting memory',
+    ],
+    'notif_customization': [
+      'Pick times that fit your day',
+      'Filter by authors or tags',
+      'Weekday schedules',
+      'Personalized reminder flow',
+    ],
   };
 
   List<String> get _bullets =>
@@ -82,10 +100,10 @@ class _PaywallState extends State<Paywall> {
 
   String _contextualHeadline() {
     switch (widget.contextKey) {
-      case 'search':
-        return 'Find any line in seconds';
       case 'browse_tags':
         return 'Explore by tag & era — without limits';
+      case 'browse_author':
+        return 'Browse authors A–Z, fully unlocked';
       case 'browse_period':
         return 'See every era, fully unlocked';
       case 'settings_theme':
@@ -93,7 +111,13 @@ class _PaywallState extends State<Paywall> {
       case 'settings_font':
         return 'Typography that feels right.';
       case 'reward_upgrade':
-        return 'Keep today’s reward forever';
+        return 'Keep today\'s reward forever';
+      case 'learn_trainer':
+        return 'Learn smarter with guided sessions';
+      case 'srs_unlimited':
+        return 'Master every quote with unlimited reviews';
+      case 'notif_customization':
+        return 'Reminders that fit your schedule';
       default:
         return 'Read smarter. Unlock more.';
     }
@@ -217,9 +241,9 @@ class _PaywallState extends State<Paywall> {
   Widget _buildAllProFeaturesExpandable() {
     final Map<String, List<String>> groups = {
       'Explore': [
-        'Full quotes library (~5,000)',
-        'Direct quote search (quote/author/tag)',
-        'Browse by Tag & Period',
+        'Full premium quotes library',
+        'Browse by Author & Period',
+        'Curated Author Collections',
       ],
       'Customize': [
         'Premium themes & fonts',
@@ -235,11 +259,6 @@ class _PaywallState extends State<Paywall> {
         'Custom count & times',
         'Smart Schedule',
         'Filter by author/tag',
-      ],
-      'Streak & Notes': [
-        'Streak Freeze & Restore',
-        'Add personal notes to quotes',
-        'Add your own quotes (local)',
       ],
     };
 
@@ -322,24 +341,6 @@ class _PaywallState extends State<Paywall> {
         _buildPlanCard(PurchasePlan.annual, isRecommended: true),
         const SizedBox(height: 12),
         _buildPlanCard(PurchasePlan.monthly),
-        if (_showLifetime) ...[
-          const SizedBox(height: 12),
-          _buildPlanCard(PurchasePlan.lifetime),
-        ],
-        if (!_showLifetime)
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _showLifetime = true;
-              });
-            },
-            child: Text(
-              'See lifetime option',
-              style: TextStyle(
-                color: Theme.of(context).primaryColor.withOpacity(0.7),
-              ),
-            ),
-          ),
       ],
     );
   }

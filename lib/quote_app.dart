@@ -18,15 +18,16 @@ import 'widgets/details_popup.dart';
 import 'widgets/tag_chip.dart';
 import 'widgets/author_chip.dart';
 import 'utils/share_quote.dart';
+import 'models/period_catalog.dart';
 import 'utils/system_ui.dart';
 import 'widgets/active_filters_bar.dart';
 import 'widgets/settings_sheet.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
-import 'package:quotes_app/widgets/award_sheet.dart';
 import 'package:quotes_app/widgets/reward_island.dart';
 import 'quote.dart';
 import 'quote_service.dart';
 import 'browse_hub.dart';
+import 'utils/feature_gate.dart';
 import 'about.dart';
 import 'learn_hub.dart';
 import 'profile_rewards_page.dart';
@@ -71,12 +72,15 @@ class QuoteAppState extends State<QuoteApp>
   final Set<String> _preferredAuthors = <String>{};
   final Set<String> _preferredTags = <String>{};
   final Set<String> _selectedAuthors = <String>{};
+  Map<String, dynamic>? _periodFilter;
   bool _isFavoritesMode = false;
   bool _isPersonalizedMode = true;
   bool _isLoading = true;
   bool _isSecondPageVisible = false;
   final Set<String> _infoCardIds = <String>{};
+
   List<dynamic> _pageViewItems = [];
+  bool _showDetailsIsland = false;
 
   bool _hasExploredLearn = false;
   bool _hasExploredBrowse = false;
@@ -116,7 +120,20 @@ class QuoteAppState extends State<QuoteApp>
         // A simple way to refresh any UI that depends on entitlements
         setState(() {});
       });
+
+      // Sync notifications with current preferences
+      _syncNotifications();
     }
+  }
+
+  Future<void> _syncNotifications() async {
+    final prefs = await NotificationService.loadNotificationPrefs();
+    await NotificationService.syncWithPrefs(
+      prefs,
+      DateTime.now(),
+      feed: _allQuotes,
+      favoriteQuotes: _favoriteQuotes,
+    );
   }
 
   Future<void> _handleAppLaunch() async {
@@ -177,27 +194,7 @@ class QuoteAppState extends State<QuoteApp>
     });
   }
 
-  void _showAwardSheet(List<String> awardedFeatureKeys) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return AwardSheet(
-          awardedFeatureKeys: awardedFeatureKeys,
-          onSeeRewards: () {
-            Navigator.of(context).pop(); // Close the sheet
-            _navigateToRewardsCenter();
-          },
-          onTryFeature: (featureKey) {
-            Navigator.of(context).pop(); // Close the sheet
-            // For now, just show a snackbar. Later, this will navigate.
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Feature coming in Phase 2: $featureKey')),
-            );
-          },
-        );
-      },
-    );
-  }
+  // Removed unused _showAwardSheet; reward surfaces via RewardIsland
 
   @override
   void dispose() {
@@ -454,6 +451,7 @@ class QuoteAppState extends State<QuoteApp>
     setState(() {
       _selectedTags.clear();
       _selectedAuthors.clear();
+      _periodFilter = null;
       _isFavoritesMode = false;
     });
     _applyFilters();
@@ -472,6 +470,17 @@ class QuoteAppState extends State<QuoteApp>
     setState(() {
       _selectedAuthors.clear();
       _selectedAuthors.addAll(selectedAuthors);
+      _isFavoritesMode = false;
+    });
+    _applyFilters();
+  }
+
+  void _applyPeriodFilter(Map<String, dynamic> periodFilter) {
+    setState(() {
+      _periodFilter = periodFilter;
+      _selectedAuthors.clear();
+      // Don't add selected authors to _selectedAuthors to avoid showing them in active filters
+      // The period filter logic will handle author filtering internally
       _isFavoritesMode = false;
     });
     _applyFilters();
@@ -544,6 +553,30 @@ class QuoteAppState extends State<QuoteApp>
         }
       }
 
+      // Apply period filter if set
+      if (_periodFilter != null) {
+        final startYear = _periodFilter!['start_year'] as int;
+        final endYear = _periodFilter!['end_year'] as int;
+        filteredQuotes = PeriodCatalog.getQuotesForRange(
+          filteredQuotes,
+          startYear,
+          endYear,
+        );
+
+        // Apply selected authors from period filter
+        final selectedAuthors = _periodFilter!['selected_authors'];
+        if (selectedAuthors is Set<String> && selectedAuthors.isNotEmpty) {
+          filteredQuotes = filteredQuotes
+              .where((quote) => selectedAuthors.contains(quote.authorName))
+              .toList();
+        } else if (selectedAuthors is Iterable && selectedAuthors.isNotEmpty) {
+          final authorSet = selectedAuthors.cast<String>().toSet();
+          filteredQuotes = filteredQuotes
+              .where((quote) => authorSet.contains(quote.authorName))
+              .toList();
+        }
+      }
+
       if (!_isFavoritesMode && !_isPersonalizedMode) {
         filteredQuotes.shuffle();
       }
@@ -604,23 +637,33 @@ class QuoteAppState extends State<QuoteApp>
     setState(() {
       _hasExploredBrowse = true;
     });
-    final result = await Navigator.push<Map<String, Set<String>>>(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => BrowseHubPage(
           allQuotes: _allQuotes,
+          favoriteQuotes: _favoriteQuotes,
+          viewCounts: _viewCounts,
           initialSelectedTags: _selectedTags,
           initialSelectedAuthors: _selectedAuthors,
         ),
       ),
     );
-    if (result != null && mounted) {
-      // This part might need adjustment depending on what BrowseHubPage returns.
-      // Assuming it can return a map like {'tags': Set<String>} or {'authors': Set<String>}.
+    if (!mounted) return;
+    if (result is Map) {
+      // Handle different filter types returned from BrowseHubPage
       if (result.containsKey('tags')) {
-        _applyTagFilter(result['tags']!);
+        final tags = result['tags'];
+        if (tags is Set<String>) _applyTagFilter(tags);
       } else if (result.containsKey('authors')) {
-        _applyAuthorFilter(result['authors']!);
+        final authors = result['authors'];
+        if (authors is Set<String>) _applyAuthorFilter(authors);
+      } else if (result.containsKey('period_filter') &&
+          result['period_filter'] != null) {
+        final pf = result['period_filter'];
+        if (pf is Map) {
+          _applyPeriodFilter(pf.cast<String, dynamic>());
+        }
       }
     }
   }
@@ -632,29 +675,10 @@ class QuoteAppState extends State<QuoteApp>
     );
   }
 
-  void _navigateToRewardsCenter() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ProfileRewardsPage()),
-    );
-  }
-
   void _showDetailsPopup(BuildContext anchorContext) {
-    final quote = _quotes[_currentIndex];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DetailsPopupContent(
-          quote: quote,
-          buildTagChip: _buildTagChip,
-          buildAuthorChip: _buildAuthorChip,
-          onTagToggled: _toggleTagFilter,
-          onAuthorToggled: _toggleAuthorFilter,
-        );
-      },
-    );
+    setState(() {
+      _showDetailsIsland = true;
+    });
   }
 
   Widget _buildAuthorChip(String authorName, {void Function(String)? onTap}) {
@@ -667,7 +691,17 @@ class QuoteAppState extends State<QuoteApp>
         if (onTap != null) {
           onTap(authorName);
         } else {
-          _toggleAuthorFilter(authorName);
+          // Gate author filtering for non-Pro users
+          requireFeature(
+            context,
+            EntitlementsService.browseAuthor,
+            onAllowed: () {
+              _toggleAuthorFilter(authorName);
+            },
+            onBlocked: () {
+              openPaywall(context: context, contextKey: 'browse_author');
+            },
+          );
         }
       },
     );
@@ -697,9 +731,8 @@ class QuoteAppState extends State<QuoteApp>
         appBar: AppBar(
           title: Text(
             '',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Theme.of(context).primaryColor,
-              fontFamily: 'EBGaramond',
             ),
           ),
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -714,9 +747,8 @@ class QuoteAppState extends State<QuoteApp>
             child: Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontSize: 18,
-                fontFamily: 'EBGaramond',
                 color: Theme.of(context).primaryColor,
               ),
             ),
@@ -789,6 +821,7 @@ class QuoteAppState extends State<QuoteApp>
               ActiveFiltersBar(
                 selectedTags: _selectedTags,
                 selectedAuthors: _selectedAuthors,
+                periodFilter: _periodFilter,
                 isFavoritesMode: _isFavoritesMode,
                 onClear: _clearFilter,
               ),
@@ -812,6 +845,41 @@ class QuoteAppState extends State<QuoteApp>
               ),
             ],
           ),
+
+          // Tag/Author details island overlay above the bottom action bar
+          if (_showDetailsIsland)
+            Positioned.fill(
+              child: Stack(
+                children: [
+                  // Dismiss barrier
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _showDetailsIsland = false),
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(color: Colors.transparent),
+                    ),
+                  ),
+                  // Island positioned just above the bottom bar
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: 80 + MediaQuery.of(context).padding.bottom + 6,
+                      ),
+                      child: DetailsPopupContent(
+                        quote: _quotes[_currentIndex],
+                        buildTagChip: _buildTagChip,
+                        buildAuthorChip: _buildAuthorChip,
+                        onTagToggled: _toggleTagFilter,
+                        onAuthorToggled: _toggleAuthorFilter,
+                        onRequestClose: () =>
+                            setState(() => _showDetailsIsland = false),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Streak Island Overlay
           if (_showStreakIsland || _awardedFeatureKey != null)
@@ -867,9 +935,8 @@ class QuoteAppState extends State<QuoteApp>
       appBar: AppBar(
         title: Text(
           'Literature Bites',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: Theme.of(context).primaryColor,
-            fontFamily: 'EBGaramond',
           ),
         ),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -889,7 +956,11 @@ class QuoteAppState extends State<QuoteApp>
                 builder: (context) {
                   return FractionallySizedBox(
                     heightFactor: 0.75,
-                    child: const SettingsSheet(),
+                    child: SettingsSheet(
+                      allQuotes: _allQuotes,
+                      favoriteQuotes: _favoriteQuotes,
+                      viewCounts: _viewCounts,
+                    ),
                   );
                 },
               );
@@ -940,7 +1011,7 @@ class QuoteAppState extends State<QuoteApp>
 
     if (shouldShowLearnCard && shouldShowBrowseCard) {
       message =
-          'Expand the side drawer to browse quotes by author or tag, or to start a personalized quiz in the Learn section.';
+          'You can expand the drawer to browse quotes by author or tag, or to start a personalized quiz in the Learn section.';
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
@@ -955,7 +1026,7 @@ class QuoteAppState extends State<QuoteApp>
       ];
     } else if (shouldShowLearnCard) {
       message =
-          'Expand the side drawer to start a personalized quiz in the Learn section.';
+          'You can expand the drawer to start a personalized quiz in the Learn section.';
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToLearn),
@@ -965,7 +1036,7 @@ class QuoteAppState extends State<QuoteApp>
       ];
     } else if (shouldShowBrowseCard) {
       message =
-          'Expand the side drawer to browse quotes by author, tag, or historical period.';
+          'You can expand the drawer to browse quotes by author, tag, or historical period.';
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
@@ -1015,14 +1086,7 @@ class QuoteAppState extends State<QuoteApp>
               _navigateToProfile();
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.star_outline),
-            title: const Text("Rewards & Passes"),
-            onTap: () {
-              Navigator.pop(context);
-              _navigateToRewardsCenter();
-            },
-          ),
+
           const Divider(),
           ListTile(
             leading: const Icon(Icons.explore),
@@ -1048,27 +1112,8 @@ class QuoteAppState extends State<QuoteApp>
             },
           ),
           ListTile(
-            leading: ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Colors.blueAccent, Colors.purpleAccent],
-                tileMode: TileMode.mirror,
-              ).createShader(bounds),
-              child: const Icon(Icons.school, color: Colors.white),
-            ),
-            title: ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Colors.blue, Colors.purple],
-                tileMode: TileMode.mirror,
-              ).createShader(bounds),
-              child: const Text(
-                "Learn",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'EBGaramond',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            leading: const Icon(Icons.school),
+            title: const Text("Learn"),
             onTap: () {
               Navigator.pop(context);
               _navigateToLearn();
@@ -1076,6 +1121,7 @@ class QuoteAppState extends State<QuoteApp>
           ),
           if (_selectedTags.isNotEmpty ||
               _selectedAuthors.isNotEmpty ||
+              _periodFilter != null ||
               _isFavoritesMode)
             ListTile(
               leading: const Icon(Icons.clear),

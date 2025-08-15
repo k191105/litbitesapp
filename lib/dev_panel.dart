@@ -115,7 +115,7 @@ class DevPanelPageState extends State<DevPanelPage> {
 
   Widget _buildFeaturePassesSection() {
     final allFeatures = [
-      EntitlementsService.search,
+      EntitlementsService.browseAuthor,
       EntitlementsService.browseTags,
       EntitlementsService.browsePeriod,
       EntitlementsService.premiumThemes,

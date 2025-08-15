@@ -68,9 +68,6 @@ class QuizService {
     if (quote.authorBirth != null) {
       availableTypes.add(QuizType.authorPeriod);
     }
-    if (quote.interpretation != null && quote.interpretation!.isNotEmpty) {
-      availableTypes.add(QuizType.matchInterpretation);
-    }
     return availableTypes;
   }
 
@@ -139,17 +136,6 @@ class QuizService {
         questionText = 'In what period did ${quote.authorName} live?';
         correctAnswer = '${quote.authorBirth}–${quote.authorDeath}';
         options = _generateAuthorPeriodOptions(correctAnswer);
-        break;
-      case QuizType.matchInterpretation:
-        quoteText = quote.interpretation;
-        questionText = 'Which quote does this interpretation refer to?';
-        correctAnswer = quote.text;
-
-        final otherInterpretations = favoriteQuotes
-            .where((q) => q.id != quote.id && q.text.isNotEmpty)
-            .map((q) => q.text)
-            .toList();
-        options = _generateOptions(correctAnswer, otherInterpretations);
         break;
       default:
         return null;

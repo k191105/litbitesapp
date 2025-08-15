@@ -1,12 +1,6 @@
 import 'package:quotes_app/quote.dart';
 
-enum QuizType {
-  whoSaidThis,
-  whatSource,
-  unscramble,
-  authorPeriod,
-  matchInterpretation,
-}
+enum QuizType { whoSaidThis, whatSource, authorPeriod }
 
 class QuizQuestion {
   final Quote quote;

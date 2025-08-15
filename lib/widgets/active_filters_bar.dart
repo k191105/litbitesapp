@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class ActiveFiltersBar extends StatelessWidget {
   final Set<String> selectedTags;
   final Set<String> selectedAuthors;
+  final Map<String, dynamic>? periodFilter;
   final bool isFavoritesMode;
   final VoidCallback onClear;
 
@@ -10,6 +11,7 @@ class ActiveFiltersBar extends StatelessWidget {
     super.key,
     required this.selectedTags,
     required this.selectedAuthors,
+    this.periodFilter,
     required this.isFavoritesMode,
     required this.onClear,
   });
@@ -20,6 +22,8 @@ class ActiveFiltersBar extends StatelessWidget {
       if (isFavoritesMode) 'Favorites',
       ...selectedTags,
       ...selectedAuthors,
+      if (periodFilter != null)
+        '${periodFilter!['start_year']}-${periodFilter!['end_year']}',
     ];
 
     if (filters.isEmpty) {

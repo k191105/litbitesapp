@@ -33,14 +33,10 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
   }
 
   Future<void> _generateQuestion() async {
-    final learningData = await _srsService.getLearningData();
-    final now = DateTime.now();
-
-    final dueQuotes = widget.favoriteQuotes.where((quote) {
-      final data = learningData[quote.id];
-      if (data == null) return true;
-      return now.difference(data.lastReviewed).inDays >= data.interval;
-    }).toList();
+    final dueQuoteIds = await _srsService.loadDue(DateTime.now());
+    final dueQuotes = widget.favoriteQuotes
+        .where((quote) => dueQuoteIds.contains(quote.id))
+        .toList();
 
     final quotesForQuestions = dueQuotes.isNotEmpty
         ? dueQuotes
@@ -65,7 +61,11 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
     setState(() {
       _selectedAnswer = answer;
       _answered = true;
-      _srsService.updateQuote(_currentQuestion!.quote.id, isCorrect);
+      _srsService.grade(
+        _currentQuestion!.quote.id,
+        correct: isCorrect,
+        today: DateTime.now(),
+      );
     });
   }
 

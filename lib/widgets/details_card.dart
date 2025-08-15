@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../quote.dart';
+import '../theme/lb_theme_extension.dart';
 
 class DetailsCard extends StatelessWidget {
   final Quote quote;
@@ -17,6 +18,8 @@ class DetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lbTheme = Theme.of(context).extension<LBTheme>();
+
     return SingleChildScrollView(
       controller: controller,
       child: Padding(
@@ -26,21 +29,21 @@ class DetailsCard extends StatelessWidget {
           children: [
             Text(
               '"${quote.text}"',
-              style: TextStyle(
-                fontFamily: "EBGaramond",
-                fontSize: 22,
-                fontStyle: FontStyle.italic,
-                color: Theme.of(context).primaryColor,
-                height: 1.5,
-              ),
+              style:
+                  lbTheme?.quoteTextStyle(context, 22) ??
+                  Theme.of(context).textTheme.headlineSmall!.copyWith(
+                    fontSize: 22,
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).primaryColor,
+                    height: 1.5,
+                  ),
             ),
             const SizedBox(height: 24),
             if (quote.interpretation != null &&
                 quote.interpretation!.isNotEmpty) ...[
               Text(
                 'Interpretation',
-                style: TextStyle(
-                  fontFamily: 'EBGaramond',
+                style: Theme.of(context).textTheme.titleLarge!.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
                   color: Theme.of(context).primaryColor,
@@ -49,8 +52,7 @@ class DetailsCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 quote.interpretation!,
-                style: TextStyle(
-                  fontFamily: 'EBGaramond',
+                style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                   fontSize: 16,
                   height: 1.6,
                   color: Theme.of(context).primaryColor.withOpacity(0.85),
@@ -81,7 +83,9 @@ class DetailsCard extends StatelessWidget {
                 ),
                 child: Text(
                   '« Back to Quote',
-                  style: TextStyle(color: Theme.of(context).primaryColor),
+                  style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                    color: Theme.of(context).primaryColor,
+                  ),
                 ),
               ),
             ),
@@ -103,20 +107,18 @@ class DetailsCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium!.copyWith(
               color: Theme.of(context).primaryColor.withOpacity(0.7),
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              fontFamily: 'EBGaramond',
             ),
           ),
           const SizedBox(height: 4),
           Text(
             content,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
               color: Theme.of(context).primaryColor,
               fontSize: 15,
-              fontFamily: 'EBGaramond',
             ),
           ),
         ],
@@ -136,11 +138,10 @@ class DetailsCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium!.copyWith(
               color: Theme.of(context).primaryColor.withOpacity(0.7),
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              fontFamily: 'EBGaramond',
             ),
           ),
           const SizedBox(height: 8),
