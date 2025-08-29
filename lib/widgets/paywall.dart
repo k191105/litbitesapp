@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-// import 'package:lottie/lottie.dart';
+import 'package:lottie/lottie.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/purchase_service.dart';
+import 'package:quotes_app/services/revenuecat_keys.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:quotes_app/theme/lb_theme_extension.dart';
 
 class Paywall extends StatefulWidget {
   final String contextKey;
@@ -28,6 +30,10 @@ class _PaywallState extends State<Paywall> {
     super.initState();
     _selectedPlan = widget.initialPlan;
     Analytics.instance.logEvent('paywall.view', {'context': widget.contextKey});
+    Future.microtask(() async {
+      await PurchaseService.instance.ensureOfferingsLoaded();
+      if (mounted) setState(() {});
+    });
   }
 
   Map<String, List<String>> get _contextualBullets => {
@@ -35,7 +41,6 @@ class _PaywallState extends State<Paywall> {
       'Unlock all tags and eras',
       'Open the full library (~5,000 quotes)',
       'Follow interests deeper with Tag/Period',
-      'Add your own quotes and notes',
     ],
     'browse_author': [
       'Browse by author A–Z',
@@ -45,7 +50,7 @@ class _PaywallState extends State<Paywall> {
     ],
     'browse_period': [
       'Browse by Period (Romanticism → Modernism)',
-      'Open the full library (~5,000 quotes)',
+      'Unlock the premium library',
       'See era‑specific highlights',
       'Time‑based discovery made easy',
     ],
@@ -54,6 +59,7 @@ class _PaywallState extends State<Paywall> {
       'Share without watermark',
       'Home/lock‑screen widgets',
       'Make it feel uniquely yours',
+      'Unlock premium quote library',
     ],
     'settings_font': [
       'Premium fonts unlocked',
@@ -62,17 +68,17 @@ class _PaywallState extends State<Paywall> {
       'Make every quote look right',
     ],
     'profile_upgrade': [
-      'Full library (up to 5,000 quotes) unlocked',
-      'Search + Browse by Tag & Period',
-      'Learn Trainer + unlimited reviews',
+      'Full premium library unlocked',
+      'Browse by Author & Period',
+      'Curated Author Collections',
+      'Personalised Learning',
       'Custom notifications & Smart Schedule',
-      'Premium share styles (no watermark)',
     ],
     'reward_upgrade': [
       'Keep your unlocked feature forever',
       'Full library (~5,000) + Search',
       'All premium customization',
-      'Trainer + unlimited reviews',
+      'Personalised Learning',
     ],
     'learn_trainer': [
       'Guided sessions tailored to you',
@@ -81,7 +87,7 @@ class _PaywallState extends State<Paywall> {
       'Master quotes with spaced repetition',
     ],
     'srs_unlimited': [
-      'Unlimited daily reviews',
+      'Personalised learning',
       'Master quotes with spaced repetition',
       'Track your progress',
       'Build lasting memory',
@@ -123,6 +129,16 @@ class _PaywallState extends State<Paywall> {
     }
   }
 
+  String _ctaLabel() {
+    final trialDescription = PurchaseService.instance.getTrialDescription(
+      _selectedPlan,
+    );
+    if (trialDescription != null) {
+      return trialDescription;
+    }
+    return 'Continue';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -142,7 +158,7 @@ class _PaywallState extends State<Paywall> {
             height: 4,
             margin: const EdgeInsets.only(top: 12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: Theme.of(context).disabledColor.withOpacity(0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -214,8 +230,11 @@ class _PaywallState extends State<Paywall> {
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.blue, Colors.purple],
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.secondary,
+                      Theme.of(context).colorScheme.primary,
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -244,21 +263,14 @@ class _PaywallState extends State<Paywall> {
         'Full premium quotes library',
         'Browse by Author & Period',
         'Curated Author Collections',
+        'Intelligent recommendation algorithm',
       ],
-      'Customize': [
-        'Premium themes & fonts',
-        'Premium share styles (no watermark)',
-        'Home/lock‑screen widgets',
-      ],
-      'Learn': [
-        'Learn Trainer sessions',
-        'SRS unlimited reviews',
-        'Progress stats',
-      ],
+      'Customize': ['Premium themes & fonts', 'Make it feel uniquely yours'],
+      'Learn': ['Personalised learning', 'Spaced Repetition', 'Progress stats'],
       'Notifications': [
         'Custom count & times',
         'Smart Schedule',
-        'Filter by author/tag',
+        'Customise by author/tag',
       ],
     };
 
@@ -346,7 +358,16 @@ class _PaywallState extends State<Paywall> {
   }
 
   Widget _buildPlanCard(PurchasePlan plan, {bool isRecommended = false}) {
+    final theme = Theme.of(context);
+    final lbTheme = theme.extension<LBTheme>()!;
     final isSelected = _selectedPlan == plan;
+
+    final rawName = PurchaseService.instance.getPlanDisplayName(plan);
+    final planName = (rawName != null && rawName.trim().isNotEmpty)
+        ? rawName
+        : (plan == PurchasePlan.annual ? 'Pro Annual' : 'Pro Monthly');
+
+    final price = PurchaseService.instance.getPlanPrice(plan);
 
     return GestureDetector(
       onTap: () {
@@ -359,13 +380,15 @@ class _PaywallState extends State<Paywall> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey.shade300,
+            color: isSelected
+                ? theme.colorScheme.primary
+                : lbTheme.controlBorder.withOpacity(0.5),
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
           color: isSelected
-              ? Colors.blue.withOpacity(0.05)
-              : Theme.of(context).cardColor,
+              ? theme.colorScheme.primary.withOpacity(0.05)
+              : lbTheme.controlSurface,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,7 +397,7 @@ class _PaywallState extends State<Paywall> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  PurchaseService.instance.getPlanDisplayName(plan),
+                  planName,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -388,8 +411,11 @@ class _PaywallState extends State<Paywall> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.blue, Colors.purple],
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.secondary,
+                          theme.colorScheme.primary,
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -406,7 +432,7 @@ class _PaywallState extends State<Paywall> {
             ),
             const SizedBox(height: 8),
             Text(
-              PurchaseService.instance.getPlanPrice(plan),
+              price ?? '—',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -415,7 +441,7 @@ class _PaywallState extends State<Paywall> {
             ),
             if (plan == PurchasePlan.annual)
               Text(
-                '${PurchaseService.instance.getAnnualPerMonthPrice()}/month',
+                '${PurchaseService.instance.getAnnualPerMonthPrice() ?? '... '}/month',
                 style: TextStyle(
                   fontSize: 14,
                   color: Theme.of(context).primaryColor.withOpacity(0.6),
@@ -441,28 +467,45 @@ class _PaywallState extends State<Paywall> {
         SizedBox(
           width: double.infinity,
           height: 50,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _handlePurchase,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.secondary,
+                  Theme.of(context).colorScheme.primary,
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
+              borderRadius: BorderRadius.circular(25),
             ),
-            child: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _handlePurchase,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      _ctaLabel(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
-                  )
-                : const Text(
-                    'Start 7‑day free trial',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -501,10 +544,24 @@ class _PaywallState extends State<Paywall> {
   }
 
   Widget _buildLegalFooter() {
+    final price = PurchaseService.instance.getPlanPrice(_selectedPlan);
+    final trialDescription = PurchaseService.instance.getTrialDescription(
+      _selectedPlan,
+    );
+
+    String text;
+    if (trialDescription != null) {
+      text =
+          '$trialDescription, then $price per ${_selectedPlan == PurchasePlan.monthly ? 'month' : 'year'}. Cancel anytime.';
+    } else {
+      text =
+          'Billed $price per ${_selectedPlan == PurchasePlan.monthly ? 'month' : 'year'}. Cancel anytime.';
+    }
+
     return Column(
       children: [
         Text(
-          '7-day free trial, then ${PurchaseService.instance.getPlanPrice(_selectedPlan)} per ${_selectedPlan == PurchasePlan.monthly ? 'month' : 'year'}. Cancel anytime.',
+          text,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 12,
@@ -569,9 +626,9 @@ class _PaywallState extends State<Paywall> {
     });
 
     try {
-      await PurchaseService.instance.purchase(_selectedPlan.id);
+      final success = await PurchaseService.instance.purchase(_selectedPlan.id);
 
-      if (mounted) {
+      if (success && mounted) {
         Navigator.of(
           context,
         ).pop(true); // Return true to indicate successful purchase

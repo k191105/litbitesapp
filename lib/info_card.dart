@@ -29,27 +29,25 @@ class InfoCard extends StatelessWidget {
           children: [
             Icon(
               Icons.info_outline,
-              color: Colors.black.withOpacity(0.6),
+              color: Theme.of(context).primaryColor.withOpacity(0.7),
               size: 40,
             ),
             const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'EBGaramond',
-                fontSize: 24,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'EBGaramond',
-                fontSize: 18,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 height: 1.5,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             if (actions.isNotEmpty) ...[
@@ -118,7 +116,15 @@ class GradientOutlinedButton extends StatelessWidget {
                   backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
               borderRadius: BorderRadius.circular(borderRadius - strokeWidth),
             ),
-            child: child,
+            child: DefaultTextStyle(
+              style:
+                  Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ) ??
+                  const TextStyle(),
+              child: child,
+            ),
           ),
         ),
       ),

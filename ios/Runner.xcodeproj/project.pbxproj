@@ -13,6 +13,9 @@
 		3804559DC7F2557133A45C0E /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 75D872EFA489134369892CCB /* Pods_RunnerTests.framework */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		90DF545F2E4F7DF7002BA95B /* StoreKitTestCertificate.cer in Resources */ = {isa = PBXBuildFile; fileRef = 90DF545E2E4F7DF7002BA95B /* StoreKitTestCertificate.cer */; };
+		90DF54612E501F8F002BA95B /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90DF54602E501F8F002BA95B /* StoreKit.framework */; };
+		90DF54632E503E96002BA95B /* Pro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 90DF54622E503E96002BA95B /* Pro.storekit */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -55,6 +58,9 @@
 		75D872EFA489134369892CCB /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		8E9E335569C857152062238D /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
+		90DF545E2E4F7DF7002BA95B /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
+		90DF54602E501F8F002BA95B /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		90DF54622E503E96002BA95B /* Pro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Pro.storekit; sourceTree = "<group>"; };
 		90F087FE2E35240B00FA07DA /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		90F088002E35240B00FA07DA /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		90F088172E35247A00FA07DA /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
@@ -84,6 +90,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				15E8F4362A8610F4916ACAF5 /* Pods_Runner.framework in Frameworks */,
+				90DF54612E501F8F002BA95B /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -114,6 +121,7 @@
 		6EB29C4D0DD5338D216782E0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				90DF54602E501F8F002BA95B /* StoreKit.framework */,
 				90F087FE2E35240B00FA07DA /* WidgetKit.framework */,
 				90F088002E35240B00FA07DA /* SwiftUI.framework */,
 				C3DB633C36DFC8768D5D7652 /* Pods_Runner.framework */,
@@ -166,6 +174,8 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				90DF545E2E4F7DF7002BA95B /* StoreKitTestCertificate.cer */,
+				90DF54622E503E96002BA95B /* Pro.storekit */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -268,8 +278,10 @@
 			files = (
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
+				90DF54632E503E96002BA95B /* Pro.storekit in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				90DF545F2E4F7DF7002BA95B /* StoreKitTestCertificate.cer in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

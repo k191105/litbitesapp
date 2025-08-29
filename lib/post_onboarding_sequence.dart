@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/widgets/paywall.dart';
+import 'package:quotes_app/utils/feature_gate.dart';
 import 'dart:async';
 
 class PostOnboardingSequence extends StatefulWidget {
@@ -283,12 +284,9 @@ class PaywallIntroScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () async {
                     // Show the full paywall
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const Paywall(contextKey: 'profile_upgrade'),
-                      ),
+                    await openPaywall(
+                      context: context,
+                      contextKey: 'profile_upgrade',
                     );
                     // Continue regardless of paywall result
                     onFinished();

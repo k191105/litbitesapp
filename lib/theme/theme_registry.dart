@@ -40,19 +40,30 @@ class ThemeRegistry {
   }
 
   static ThemeData _buildLightTheme() {
+    const paper = Color(0xFFF4EFE8); // warm paper
+    const primary = Color(0xFF333333); // soft charcoal
+
     return ThemeData(
       brightness: Brightness.light,
-      primaryColor: Colors.grey.shade800,
-      scaffoldBackgroundColor: const Color.fromARGB(255, 240, 234, 225),
+      primaryColor: primary,
+      scaffoldBackgroundColor: paper,
+      dividerColor: Color(0x1F000000), // ~12% black
+      appBarTheme: const AppBarTheme(
+        backgroundColor: paper,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        foregroundColor: primary,
+      ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.grey.shade800,
+        seedColor: primary,
         brightness: Brightness.light,
-        background: const Color.fromARGB(255, 240, 234, 225),
+        background: paper,
       ),
       fontFamily: 'EBGaramond',
       extensions: const <ThemeExtension<dynamic>>[
         LBTheme(
-          controlSurface: Color.fromARGB(255, 230, 224, 215),
+          controlSurface: Color.fromARGB(255, 234, 227, 218),
           controlOnSurface: Color.fromARGB(255, 30, 30, 30),
           controlBorder: Color.fromARGB(20, 0, 0, 0),
         ),
@@ -82,60 +93,93 @@ class ThemeRegistry {
   }
 
   static ThemeData _buildSandTheme() {
+    const sand = Color(0xFFF2EADD); // desaturated sand
+    const primary = Color(0xFF4F3B2A); // muted walnut
+
     return ThemeData(
       brightness: Brightness.light,
-      primaryColor: const Color(0xFF5D4037),
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC),
+      primaryColor: primary,
+      scaffoldBackgroundColor: sand,
+      dividerColor: Color(0x14000000), // ~8% black
+      appBarTheme: const AppBarTheme(
+        backgroundColor: sand,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        foregroundColor: primary,
+      ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF5D4037),
+        seedColor: primary,
         brightness: Brightness.light,
-        background: const Color(0xFFF5F5DC),
+        background: Color(0xFFF3EDE2), // slightly cooler sand
       ),
       extensions: const <ThemeExtension<dynamic>>[
         LBTheme(
-          controlSurface: Color(0xFFEAE5D3),
-          controlOnSurface: Color(0xFF5D4037),
-          controlBorder: Color.fromARGB(15, 93, 64, 55),
+          controlSurface: Color(0xFFE8DECE), // warm card
+          controlOnSurface: Color(0xFF4F3B2A),
+          controlBorder: Color(0x1A4F3B2A), // ~10% walnut
         ),
       ],
     );
   }
 
   static ThemeData _buildInkTheme() {
+    const sheet = Color(0xFFFBFDFF); // neutral, bright “paper”
+    const primary = Color(0xFF11284C); // muted navy/ink
+
     return ThemeData(
       brightness: Brightness.light,
-      primaryColor: const Color(0xFF00008B),
-      scaffoldBackgroundColor: const Color(0xFFFFFFFF),
+      primaryColor: primary,
+      scaffoldBackgroundColor: sheet,
+      dividerColor: Color(0x1A11284C), // ~10% ink
+      appBarTheme: const AppBarTheme(
+        backgroundColor: sheet,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        foregroundColor: primary,
+      ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF00008B),
+        seedColor: primary,
         brightness: Brightness.light,
-        background: const Color(0xFFFFFFFF),
+        background: Color(0xFFF6F8FC), // cool off-white
       ),
       extensions: const <ThemeExtension<dynamic>>[
         LBTheme(
-          controlSurface: Color(0xFFF0F4FF),
-          controlOnSurface: Color(0xFF00008B),
-          controlBorder: Color.fromARGB(15, 0, 0, 139),
+          controlSurface: Color(0xFFEEF2FA), // cool card
+          controlOnSurface: Color(0xFF102A56),
+          controlBorder: Color(0x1911284C), // ~10% ink, slightly lighter
         ),
       ],
     );
   }
 
   static ThemeData _buildRoseTheme() {
+    const vellum = Color(0xFFFFF7F9); // airy rose paper
+    const primary = Color(0xFF7A2E3A); // dusty burgundy
+
     return ThemeData(
       brightness: Brightness.light,
-      primaryColor: const Color(0xFF8B0000),
-      scaffoldBackgroundColor: const Color(0xFFFFF0F5),
+      primaryColor: primary,
+      scaffoldBackgroundColor: vellum,
+      dividerColor: Color(0x1A7A2E3A), // ~10% burgundy
+      appBarTheme: const AppBarTheme(
+        backgroundColor: vellum,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        foregroundColor: primary,
+      ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF8B0000),
+        seedColor: primary,
         brightness: Brightness.light,
-        background: const Color(0xFFFFF0F5),
+        background: Color(0xFFFFF0F3), // gentle rose wash
       ),
       extensions: const <ThemeExtension<dynamic>>[
         LBTheme(
-          controlSurface: Color(0xFFFEE5EE),
-          controlOnSurface: Color(0xFF8B0000),
-          controlBorder: Color.fromARGB(15, 139, 0, 0),
+          controlSurface: Color(0xFFFBE9ED), // soft rose card
+          controlOnSurface: Color(0xFF7A2E3A),
+          controlBorder: Color(0x197A2E3A), // ~10% burgundy, lighter
         ),
       ],
     );

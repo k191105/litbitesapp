@@ -150,7 +150,7 @@ class StreakService {
       'milestone': newMilestone,
       'celebrationType': _getAnimationForMilestone(newMilestone),
       'awardedFeatureKeys': awardedFeatureKeys,
-      'weeklyView': await getWeeklyView(today, weeklyView), // Pass updated data
+      'weeklyView': await getWeeklyView(),
     };
   }
 
@@ -190,21 +190,48 @@ class StreakService {
     return data[_streakCountKey];
   }
 
-  Future<List<bool>> getWeeklyView([
-    String? today,
-    List<String>? currentWeeklyView,
-  ]) async {
-    today ??= getTodayLocal();
+  Future<List<Map<String, dynamic>>> getWeeklyView() async {
     final data = await loadData();
-    currentWeeklyView ??= data[_weeklyViewKey];
+    final List<String> engagementDates = data[_weeklyViewKey];
+    if (engagementDates.isEmpty) return [];
 
-    final sevenDays = List.generate(7, (i) {
-      return DateFormat(
-        'yyyy-MM-dd',
-      ).format(DateTime.now().subtract(Duration(days: 6 - i)));
-    });
+    final today = getTodayLocal();
+    final dayFormatter = DateFormat.E();
+    final dateFormatter = DateFormat('yyyy-MM-dd');
 
-    return sevenDays.map((day) => currentWeeklyView!.contains(day)).toList();
+    // Determine the start date of the current streak segment to display.
+    // This will be the last 7 days of the streak.
+    final List<String> displayDates = engagementDates.length > 7
+        ? engagementDates.sublist(engagementDates.length - 7)
+        : engagementDates;
+
+    final List<Map<String, dynamic>> weeklyViewData = [];
+
+    // If the streak is less than 7 days, fill the rest with empty days
+    int emptySlots = 7 - displayDates.length;
+
+    for (var dateString in displayDates) {
+      final date = dateFormatter.parse(dateString);
+      weeklyViewData.add({
+        'dayName': dayFormatter.format(date),
+        'isToday': dateString == today,
+        'isCompleted': true, // All dates in the list are completed days
+      });
+    }
+
+    // Add empty slots for the rest of the week
+    for (int i = 0; i < emptySlots; i++) {
+      final nextDay = dateFormatter
+          .parse(displayDates.last)
+          .add(Duration(days: i + 1));
+      weeklyViewData.add({
+        'dayName': dayFormatter.format(nextDay),
+        'isToday': dateFormatter.format(nextDay) == today,
+        'isCompleted': false,
+      });
+    }
+
+    return weeklyViewData;
   }
 
   // dev panel helpers

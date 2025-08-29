@@ -4,7 +4,7 @@ import 'package:lottie/lottie.dart';
 
 class StreakIsland extends StatefulWidget {
   final String streakMessage;
-  final List<bool> weeklyView; // Updated to List<bool>
+  final List<Map<String, dynamic>> weeklyView; // Updated data structure
   final VoidCallback? onTap;
   final VoidCallback? onDismiss;
 
@@ -72,22 +72,8 @@ class _StreakIslandState extends State<StreakIsland>
 
   @override
   Widget build(BuildContext context) {
-    // Generate the last 7 days for display
-    final now = DateTime.now();
-    final dayFormatter = DateFormat.E(); // 'E' gives short day name like 'Mon'
-    final List<Map<String, dynamic>> days = List.generate(7, (i) {
-      final date = now.subtract(Duration(days: 6 - i));
-      return {
-        'dayName': dayFormatter.format(date),
-        'isToday':
-            date.day == now.day &&
-            date.month == now.month &&
-            date.year == now.year,
-        'isCompleted': widget.weeklyView.length > i
-            ? widget.weeklyView[i]
-            : false,
-      };
-    }).toList();
+    // Logic for generating days is now removed from here, as it's passed in.
+    final days = widget.weeklyView;
 
     return SlideTransition(
       position: _slideAnimation,

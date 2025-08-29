@@ -1,4 +1,3 @@
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:quotes_app/author_quiz_page.dart';
 import 'package:quotes_app/flashcards_page.dart';
@@ -8,7 +7,6 @@ import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/utils/feature_gate.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 import 'package:quotes_app/learn/personalised_quiz_setup_page.dart';
-import 'package:quotes_app/recommendation_service.dart';
 import 'package:quotes_app/srs_service.dart';
 import 'quote.dart';
 
@@ -16,12 +14,14 @@ class LearnHubPage extends StatefulWidget {
   final List<Quote> allQuotes;
   final List<Quote> favoriteQuotes;
   final Map<String, int> viewCounts;
+  final Map<String, int> likeCounts;
 
   const LearnHubPage({
     super.key,
     required this.allQuotes,
     required this.favoriteQuotes,
     required this.viewCounts,
+    required this.likeCounts,
   });
 
   @override
@@ -30,10 +30,8 @@ class LearnHubPage extends StatefulWidget {
 
 class _LearnHubPageState extends State<LearnHubPage> {
   bool _trainerAllowed = false; // Pro or Feature Pass: learn_trainer
-  int _struggledQuotesCount = 0;
   int _learnedQuotesCount = 0;
   int _favoritesCount = 0;
-  int _totalViews = 0;
 
   @override
   void initState() {
@@ -47,11 +45,9 @@ class _LearnHubPageState extends State<LearnHubPage> {
     final hasTrainerPass = await EntitlementsService.instance.isFeatureActive(
       'learn_trainer',
     );
-    final struggledQuotes = await SRSService().getStruggledQuotes();
     if (!mounted) return;
     setState(() {
       _trainerAllowed = isPro || hasTrainerPass;
-      _struggledQuotesCount = struggledQuotes.length;
     });
   }
 
@@ -60,14 +56,12 @@ class _LearnHubPageState extends State<LearnHubPage> {
     setState(() {
       _learnedQuotesCount = learnedCount;
       _favoritesCount = widget.favoriteQuotes.length;
-      _totalViews = widget.viewCounts.values.fold(0, (a, b) => a + b);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -83,7 +77,87 @@ class _LearnHubPageState extends State<LearnHubPage> {
           _buildHeroQuizCard(context, locked: !_trainerAllowed),
           const SizedBox(height: 16),
           _buildStatsRow(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          _buildSectionHeader(
+            context,
+            title: 'Shortcuts',
+            subtitle: 'Quick ways to start learning',
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _buildLearnModeCard(
+                context,
+                icon: Icons.history,
+                title: 'Recent Favorites',
+                description: 'Practice your last 10 favorites',
+                locked: !_trainerAllowed,
+                onTap: () {
+                  if (!_trainerAllowed) {
+                    openPaywall(
+                      context: context,
+                      contextKey: 'learn_shortcuts',
+                    );
+                    return;
+                  }
+                  final recentQuotes = widget.favoriteQuotes.reversed
+                      .take(10)
+                      .toList();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QuizPage(
+                        allQuotes: widget.allQuotes,
+                        favoriteQuotes: recentQuotes,
+                        viewCounts: widget.viewCounts,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _buildLearnModeCard(
+                context,
+                icon: Icons.star,
+                title: 'Top Favorites',
+                description: 'Practice your most-liked quotes',
+                locked: !_trainerAllowed,
+                onTap: () {
+                  if (!_trainerAllowed) {
+                    openPaywall(
+                      context: context,
+                      contextKey: 'learn_shortcuts',
+                    );
+                    return;
+                  }
+                  final sortedFavorites = List<Quote>.from(
+                    widget.favoriteQuotes,
+                  );
+                  sortedFavorites.sort(
+                    (a, b) => (widget.likeCounts[b.id] ?? 0).compareTo(
+                      widget.likeCounts[a.id] ?? 0,
+                    ),
+                  );
+                  final topQuotes = sortedFavorites.take(10).toList();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QuizPage(
+                        allQuotes: widget.allQuotes,
+                        favoriteQuotes: topQuotes,
+                        viewCounts: widget.viewCounts,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           _buildSectionHeader(
             context,
             title: 'Modes',
@@ -179,86 +253,89 @@ class _LearnHubPageState extends State<LearnHubPage> {
 
   Widget _buildHeroQuizCard(BuildContext context, {bool locked = false}) {
     final cs = Theme.of(context).colorScheme;
-    final cardContent = Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              cs.primary.withOpacity(0.1),
-              cs.secondary.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    final cardContent = SizedBox(
+      width: double.infinity,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                cs.primary.withOpacity(0.1),
+                cs.secondary.withOpacity(0.1),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ),
-        child: InkWell(
-          onTap: () {
-            requireFeature(
-              context,
-              'learn_trainer',
-              onAllowed: () async {
-                final config = await Navigator.of(context)
-                    .push<PersonalisedQuizConfig>(
+          child: InkWell(
+            onTap: () {
+              requireFeature(
+                context,
+                'learn_trainer',
+                onAllowed: () async {
+                  final config = await Navigator.of(context)
+                      .push<PersonalisedQuizConfig>(
+                        MaterialPageRoute(
+                          builder: (context) => PersonalisedQuizSetupPage(
+                            favoriteQuotes: widget.favoriteQuotes,
+                          ),
+                        ),
+                      );
+                  if (config != null && mounted) {
+                    Navigator.push(
+                      context,
                       MaterialPageRoute(
-                        builder: (context) => PersonalisedQuizSetupPage(
-                          favoriteQuotes: widget.favoriteQuotes,
+                        builder: (context) => QuizPage(
+                          allQuotes: widget.allQuotes,
+                          favoriteQuotes: widget.favoriteQuotes
+                              .where((q) => config.quoteIds.contains(q.id))
+                              .toList(),
+                          viewCounts: widget.viewCounts,
                         ),
                       ),
                     );
-                if (config != null && mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => QuizPage(
-                        allQuotes: widget.allQuotes,
-                        favoriteQuotes: widget.favoriteQuotes
-                            .where((q) => config.quoteIds.contains(q.id))
-                            .toList(),
-                        viewCounts: widget.viewCounts,
-                      ),
-                    ),
-                  );
-                }
-              },
-              onBlocked: () =>
-                  openPaywall(context: context, contextKey: 'learn_trainer'),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  cs.primary.withOpacity(0.85),
-                  cs.secondary.withOpacity(0.85),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                  }
+                },
+                onBlocked: () =>
+                    openPaywall(context: context, contextKey: 'learn_trainer'),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    cs.primary.withOpacity(0.85),
+                    cs.secondary.withOpacity(0.85),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.quiz, color: Colors.white, size: 40),
-                const SizedBox(height: 16),
-                Text(
-                  'Personalised Quiz',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.quiz, color: Colors.white, size: 40),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Personalised Quiz',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'A configurable challenge that spans authors, quotes, and sources.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'A configurable challenge that spans authors, quotes, and sources.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -267,34 +344,37 @@ class _LearnHubPageState extends State<LearnHubPage> {
 
     if (!locked) return cardContent;
 
-    return Stack(
-      children: [
-        cardContent,
-        Positioned(
-          top: 8,
-          right: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple, Colors.blue],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        children: [
+          cardContent,
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple, Colors.blue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(999),
               ),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              'PRO',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 10,
-                letterSpacing: 0.4,
+              child: const Text(
+                'PRO',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -379,50 +459,53 @@ class _LearnHubPageState extends State<LearnHubPage> {
     final cs = theme.colorScheme;
     final lb = theme.extension<LBTheme>();
 
-    final baseCard = Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: (lb?.controlSurface) ?? theme.cardColor,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [
-              cs.primary.withOpacity(0.1),
-              cs.secondary.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  icon,
-                  size: 36,
-                  color: theme.primaryColor.withOpacity(0.9),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurface.withOpacity(0.75),
-                      ),
-                    ),
-                  ],
-                ),
+    final baseCard = SizedBox(
+      width: double.infinity,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: (lb?.controlSurface) ?? theme.cardColor,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                cs.primary.withOpacity(0.1),
+                cs.secondary.withOpacity(0.1),
               ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(
+                    icon,
+                    size: 36,
+                    color: theme.primaryColor.withOpacity(0.9),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurface.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -441,7 +524,7 @@ class _LearnHubPageState extends State<LearnHubPage> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [cs.primary, cs.secondary],
+                colors: [Colors.purple, Colors.blue],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

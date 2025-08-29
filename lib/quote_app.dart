@@ -24,6 +24,7 @@ import 'widgets/active_filters_bar.dart';
 import 'widgets/settings_sheet.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/widgets/reward_island.dart';
+import 'package:quotes_app/widgets/tip_island.dart';
 import 'quote.dart';
 import 'quote_service.dart';
 import 'browse_hub.dart';
@@ -33,6 +34,8 @@ import 'learn_hub.dart';
 import 'profile_rewards_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'srs_service.dart';
+import 'package:quotes_app/services/purchase_service.dart';
+import 'package:quotes_app/services/revenuecat_keys.dart';
 
 class _InfoCardModel {
   final String id;
@@ -56,11 +59,10 @@ class QuoteAppState extends State<QuoteApp>
   late AnimationController _heartAnimationController;
   late Animation<double> _heartAnimation;
 
-  bool _showStreakIsland = false;
-  String _streakMessage = '';
-  List<bool> _weeklyView = [];
+  Map<String, dynamic>? _streakIslandData;
   String? _celebrationType; // 'confetti' or 'fireworks'
   String? _awardedFeatureKey;
+  String? _activeTip;
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
@@ -145,11 +147,14 @@ class QuoteAppState extends State<QuoteApp>
       final celebrationType = result['celebrationType'] as String?;
       final awardedFeatureKeys = (result['awardedFeatureKeys'] as List)
           .cast<String>();
+      final weeklyView =
+          (result['weeklyView'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
       setState(() {
-        _streakMessage = '$streakCount Day Streak!';
-        _weeklyView = result['weeklyView'] as List<bool>;
-        _showStreakIsland = true;
+        _streakIslandData = {
+          'message': '$streakCount Day Streak!',
+          'weeklyView': weeklyView,
+        };
         _celebrationType = celebrationType;
       });
 
@@ -162,12 +167,9 @@ class QuoteAppState extends State<QuoteApp>
         });
       }
     } else {
-      final weeklyView = result['weeklyView'] as List<bool>?;
-      if (weeklyView != null) {
-        setState(() {
-          _weeklyView = weeklyView;
-        });
-      }
+      // For existing engagements, we don't need to show the island,
+      // but you might want to update the view if the app has been open overnight.
+      // This part of the logic can be decided based on desired app behavior.
     }
   }
 
@@ -230,6 +232,12 @@ class QuoteAppState extends State<QuoteApp>
       _infoCardIds.addAll(seenInfoCardIds);
       final seenQuoteIds = prefs.getStringList('seenQuoteIds') ?? [];
       _seenQuoteIds.addAll(seenQuoteIds);
+
+      // Configure RevenueCat
+      PurchaseService.instance.configure(
+        iosApiKey: rcAppleApiKey,
+        // Android deferred
+      );
 
       setState(() {
         _allQuotes = quotes;
@@ -627,6 +635,7 @@ class QuoteAppState extends State<QuoteApp>
             allQuotes: _allQuotes,
             favoriteQuotes: _favoriteQuotes,
             viewCounts: _viewCounts,
+            likeCounts: _likeCounts,
           ),
         ),
       );
@@ -664,6 +673,8 @@ class QuoteAppState extends State<QuoteApp>
         if (pf is Map) {
           _applyPeriodFilter(pf.cast<String, dynamic>());
         }
+      } else if (result.containsKey('favorites')) {
+        _toggleFavoritesFilter();
       }
     }
   }
@@ -788,27 +799,56 @@ class QuoteAppState extends State<QuoteApp>
                               if (!_seenQuoteIds.contains(quoteId)) {
                                 _seenQuoteIds.add(quoteId);
                                 _updatePageViewItems();
+                                _checkForTips();
                               }
                             });
                           }
                         }
                       },
                       itemBuilder: (context, index) {
-                        if (index >= _pageViewItems.length) {
-                          return Container();
+                        // Safety check to prevent empty cards
+                        if (index >= _pageViewItems.length ||
+                            _pageViewItems.isEmpty) {
+                          // If we have quotes but pageViewItems is misaligned, rebuild it
+                          if (_quotes.isNotEmpty && _pageViewItems.isEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() {
+                                  _pageViewItems = List.from(_quotes);
+                                });
+                              }
+                            });
+                          }
+                          return const SizedBox.shrink(); // Better than empty Container
                         }
+
                         final item = _pageViewItems[index];
                         if (item is Quote) {
                           return _buildQuoteCard(item);
                         } else if (item is _InfoCardModel) {
                           return _buildInfoCard();
                         }
-                        return Container();
+
+                        // Log unexpected items to help debug
+                        debugPrint(
+                          'Warning: Unexpected item type in _pageViewItems: ${item.runtimeType}',
+                        );
+                        return const SizedBox.shrink();
                       },
                       itemCount: _pageViewItems.length,
                     ),
                     DetailsCard(
-                      quote: _quotes[_currentIndex],
+                      quote:
+                          _quotes.isNotEmpty && _currentIndex < _quotes.length
+                          ? _quotes[_currentIndex]
+                          : Quote(
+                              id: 'loading',
+                              text: 'Loading...',
+                              authorName: '',
+                              themes: [],
+                              tags: [],
+                              status: 'loading',
+                            ),
                       onHide: _hideSecondPage,
                       buildTagChip: _buildTagChip,
                       controller: _detailsScrollController,
@@ -827,22 +867,23 @@ class QuoteAppState extends State<QuoteApp>
               ),
 
               // Bottom navigation bar
-              BottomActionBar(
-                currentQuote: _quotes[_currentIndex],
-                favoriteQuotes: _favoriteQuotes,
-                likeCounts: _likeCounts,
-                onShare: _shareQuoteAsImage,
-                onNext: () {
-                  _hideSecondPage();
-                  _nextQuote();
-                },
-                onPrevious: () {
-                  _hideSecondPage();
-                  _previousQuote();
-                },
-                onToggleFavorite: _toggleFavoriteFromBar,
-                onShowDetails: _showDetailsPopup,
-              ),
+              if (_quotes.isNotEmpty && _currentIndex < _quotes.length)
+                BottomActionBar(
+                  currentQuote: _quotes[_currentIndex],
+                  favoriteQuotes: _favoriteQuotes,
+                  likeCounts: _likeCounts,
+                  onShare: _shareQuoteAsImage,
+                  onNext: () {
+                    _hideSecondPage();
+                    _nextQuote();
+                  },
+                  onPrevious: () {
+                    _hideSecondPage();
+                    _previousQuote();
+                  },
+                  onToggleFavorite: _toggleFavoriteFromBar,
+                  onShowDetails: _showDetailsPopup,
+                ),
             ],
           ),
 
@@ -866,15 +907,18 @@ class QuoteAppState extends State<QuoteApp>
                       padding: EdgeInsets.only(
                         bottom: 80 + MediaQuery.of(context).padding.bottom + 6,
                       ),
-                      child: DetailsPopupContent(
-                        quote: _quotes[_currentIndex],
-                        buildTagChip: _buildTagChip,
-                        buildAuthorChip: _buildAuthorChip,
-                        onTagToggled: _toggleTagFilter,
-                        onAuthorToggled: _toggleAuthorFilter,
-                        onRequestClose: () =>
-                            setState(() => _showDetailsIsland = false),
-                      ),
+                      child:
+                          _quotes.isNotEmpty && _currentIndex < _quotes.length
+                          ? DetailsPopupContent(
+                              quote: _quotes[_currentIndex],
+                              buildTagChip: _buildTagChip,
+                              buildAuthorChip: _buildAuthorChip,
+                              onTagToggled: _toggleTagFilter,
+                              onAuthorToggled: _toggleAuthorFilter,
+                              onRequestClose: () =>
+                                  setState(() => _showDetailsIsland = false),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
                 ],
@@ -882,7 +926,7 @@ class QuoteAppState extends State<QuoteApp>
             ),
 
           // Streak Island Overlay
-          if (_showStreakIsland || _awardedFeatureKey != null)
+          if (_streakIslandData != null)
             Positioned(
               top: 0,
               left: 0,
@@ -891,16 +935,18 @@ class QuoteAppState extends State<QuoteApp>
                 bottom: false, // Don't apply SafeArea to bottom
                 child: Column(
                   children: [
-                    if (_showStreakIsland)
+                    if (_streakIslandData != null)
                       StreakIsland(
-                        streakMessage: _streakMessage,
-                        weeklyView: _weeklyView,
+                        streakMessage: _streakIslandData!['message'] as String,
+                        weeklyView:
+                            _streakIslandData!['weeklyView']
+                                as List<Map<String, dynamic>>,
                         onTap: () {
                           // Optional: Show streak history or details
                         },
                         onDismiss: () {
                           setState(() {
-                            _showStreakIsland = false;
+                            _streakIslandData = null;
                           });
                         },
                       ),
@@ -910,6 +956,16 @@ class QuoteAppState extends State<QuoteApp>
                         onDismiss: () {
                           setState(() {
                             _awardedFeatureKey = null;
+                          });
+                        },
+                      ),
+                    if (_activeTip != null)
+                      TipIsland(
+                        message: _getTipMessage(_activeTip!),
+                        icon: _getTipIcon(_activeTip!),
+                        onDismiss: () {
+                          setState(() {
+                            _activeTip = null;
                           });
                         },
                       ),
@@ -998,13 +1054,51 @@ class QuoteAppState extends State<QuoteApp>
     await prefs.setStringList('infoCardIds', _infoCardIds.toList());
   }
 
+  void _checkForTips() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shownTips = prefs.getStringList('shownTips') ?? [];
+
+    if (_favoriteQuotes.isNotEmpty) {
+      return;
+    }
+
+    final milestones = [5, 15, 30];
+    for (var milestone in milestones) {
+      if (_seenQuoteIds.length == milestone &&
+          !shownTips.contains('double_tap_$milestone')) {
+        setState(() {
+          _activeTip = 'double_tap';
+        });
+
+        shownTips.add('double_tap_$milestone');
+        await prefs.setStringList('shownTips', shownTips);
+        break;
+      }
+    }
+  }
+
+  String _getTipMessage(String tipKey) {
+    switch (tipKey) {
+      case 'double_tap':
+        return 'Double-tap any quote to add it to your favorites!';
+      default:
+        return 'Tip: Explore the app to discover more features!';
+    }
+  }
+
+  IconData _getTipIcon(String tipKey) {
+    switch (tipKey) {
+      case 'double_tap':
+        return Icons.favorite_border;
+      default:
+        return Icons.lightbulb_outline;
+    }
+  }
+
   Widget _buildInfoCard() {
     String title = 'Did You Know?';
     String message;
     List<Widget> actions = [];
-    final cardColor = Theme.of(context).brightness == Brightness.dark
-        ? const Color.fromARGB(255, 239, 237, 231)
-        : const Color.fromARGB(255, 224, 222, 212);
 
     final bool shouldShowLearnCard = !_hasExploredLearn;
     final bool shouldShowBrowseCard = !_hasExploredBrowse;
@@ -1015,12 +1109,10 @@ class QuoteAppState extends State<QuoteApp>
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
-          backgroundColor: cardColor,
           child: const Text('Browse'),
         ),
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToLearn),
-          backgroundColor: cardColor,
           child: const Text('Learn'),
         ),
       ];
@@ -1030,7 +1122,6 @@ class QuoteAppState extends State<QuoteApp>
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToLearn),
-          backgroundColor: cardColor,
           child: const Text('Learn Now'),
         ),
       ];
@@ -1040,7 +1131,6 @@ class QuoteAppState extends State<QuoteApp>
       actions = [
         GradientOutlinedButton(
           onPressed: () => _handleInfoCardNavigation(_navigateToBrowse),
-          backgroundColor: cardColor,
           child: const Text('Browse Now'),
         ),
       ];
@@ -1049,12 +1139,7 @@ class QuoteAppState extends State<QuoteApp>
       return Container();
     }
     return Center(
-      child: InfoCard(
-        title: title,
-        message: message,
-        actions: actions,
-        color: cardColor,
-      ),
+      child: InfoCard(title: title, message: message, actions: actions),
     );
   }
 
@@ -1080,7 +1165,7 @@ class QuoteAppState extends State<QuoteApp>
           ),
           ListTile(
             leading: const Icon(Icons.person_outline),
-            title: const Text("Profile"),
+            title: const Text("Your Profile"),
             onTap: () {
               Navigator.pop(context);
               _navigateToProfile();

@@ -70,11 +70,13 @@ class BrowseByAuthorPage extends StatefulWidget {
 
 class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
   List<_Author> _allAuthors = [];
+  List<_Author> _collectionAuthors = [];
   List<_Author> _recommendedAuthors = [];
   List<_Author> _otherAuthors = [];
   List<_Author> _filteredAuthors = [];
   final Set<_Author> _selectedAuthors = {};
   final TextEditingController _searchController = TextEditingController();
+  final List<dynamic> _listItems = [];
 
   @override
   void initState() {
@@ -94,15 +96,24 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
             .toList()
           ..sort();
 
-    _recommendedAuthors = _allAuthors
-        .where((author) => _curatedAuthors.contains(author.name))
-        .toList();
-    _otherAuthors = _allAuthors
-        .where((author) => !_curatedAuthors.contains(author.name))
+    _collectionAuthors = _allAuthors
+        .where((author) => widget.initialSelectedAuthors.contains(author.name))
         .toList();
 
-    _recommendedAuthors.sort();
-    _otherAuthors.sort();
+    _recommendedAuthors = _allAuthors
+        .where(
+          (author) =>
+              _curatedAuthors.contains(author.name) &&
+              !widget.initialSelectedAuthors.contains(author.name),
+        )
+        .toList();
+    _otherAuthors = _allAuthors
+        .where(
+          (author) =>
+              !_curatedAuthors.contains(author.name) &&
+              !widget.initialSelectedAuthors.contains(author.name),
+        )
+        .toList();
 
     _filteredAuthors = _allAuthors;
 
@@ -115,6 +126,8 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
     _searchController.addListener(() {
       _filterAuthors();
     });
+
+    _buildCategorizedList();
   }
 
   @override
@@ -130,6 +143,25 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
           .where((author) => author.name.toLowerCase().contains(query))
           .toList();
     });
+  }
+
+  void _buildCategorizedList() {
+    _listItems.clear();
+
+    if (_collectionAuthors.isNotEmpty) {
+      _listItems.add('Collection Authors');
+      _listItems.addAll(_collectionAuthors);
+    }
+
+    if (_recommendedAuthors.isNotEmpty) {
+      _listItems.add('Recommended Authors');
+      _listItems.addAll(_recommendedAuthors);
+    }
+
+    if (_otherAuthors.isNotEmpty) {
+      _listItems.add('All Authors');
+      _listItems.addAll(_otherAuthors);
+    }
   }
 
   @override
@@ -205,31 +237,16 @@ class _BrowseByAuthorPageState extends State<BrowseByAuthorPage> {
   }
 
   Widget _buildCategorizedAuthorList() {
-    final itemCount =
-        _recommendedAuthors.length +
-        _otherAuthors.length +
-        (_otherAuthors.isNotEmpty ? 2 : 1);
-
     return ListView.builder(
-      itemCount: itemCount,
+      itemCount: _listItems.length,
       itemBuilder: (context, index) {
-        // Recommended Header
-        if (index == 0) {
-          return _buildSectionHeader('Recommended Authors');
+        final item = _listItems[index];
+        if (item is String) {
+          return _buildSectionHeader(item);
+        } else if (item is _Author) {
+          return _buildAuthorTile(item);
         }
-        // Recommended List
-        if (index <= _recommendedAuthors.length) {
-          final author = _recommendedAuthors[index - 1];
-          return _buildAuthorTile(author);
-        }
-        // All Authors Header
-        if (_otherAuthors.isNotEmpty &&
-            index == _recommendedAuthors.length + 1) {
-          return _buildSectionHeader('All Authors');
-        }
-        // All Authors List
-        final author = _otherAuthors[index - _recommendedAuthors.length - 2];
-        return _buildAuthorTile(author);
+        return const SizedBox.shrink();
       },
     );
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart'; // For addPostFrameCallback
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -39,10 +40,27 @@ class NotificationService {
           iOS: initializationSettingsIOS,
         );
 
+    final details = await _notificationsPlugin
+        .getNotificationAppLaunchDetails();
+    _initialPayload = details?.notificationResponse?.payload;
+
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+  }
+
+  static String? _initialPayload;
+
+  /// Should be called once after runApp to process notification that launched the app
+  static void handleInitialNotification() {
+    if (_initialPayload != null) {
+      navigatorKey.currentState?.pushNamed(
+        '/quote',
+        arguments: _initialPayload,
+      );
+      _initialPayload = null; // Clear to avoid duplicate navigation
+    }
   }
 
   static void onDidReceiveNotificationResponse(

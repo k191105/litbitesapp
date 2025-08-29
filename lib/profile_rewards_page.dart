@@ -5,6 +5,8 @@ import 'package:quotes_app/services/rewards_service.dart';
 import 'package:quotes_app/info_card.dart';
 import 'package:quotes_app/utils/feature_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:quotes_app/services/purchase_service.dart';
 
 class ProfileRewardsPage extends StatefulWidget {
   const ProfileRewardsPage({super.key});
@@ -454,24 +456,48 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       children: [
         Expanded(
           child: TextButton(
-            onPressed: () {
-              // TODO: Implement restore purchases
-            },
-            child: const Text('Restore purchases'),
+            onPressed: _handleRestore,
+            child: const Text('Restore Purchases'),
           ),
         ),
         Expanded(
           child: TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Coming soon')));
+            onPressed: () async {
+              await launchUrl(
+                Uri.parse('itms-apps://apps.apple.com/account/subscriptions'),
+                mode: LaunchMode.externalApplication,
+              );
             },
             child: const Text('Manage Subscription'),
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _handleRestore() async {
+    Analytics.instance.logEvent('profile.restore');
+    try {
+      await PurchaseService.instance.restore();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Purchases restored successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildStatCard(

@@ -419,17 +419,44 @@ class _BrowseHubPageState extends State<BrowseHubPage> {
     {
       'title': 'The Stoics',
       'subtitle': 'Timeless wisdom',
-      'authors': ['Seneca', 'Epictetus', 'Marcus Aurelius'],
+      'authors': [
+        'Seneca',
+        'Epictetus',
+        'Marcus Aurelius',
+        'Zeno of Citium',
+        'Chrysippus',
+        'Musonius Rufus',
+        'Hierocles',
+        'Posidonius',
+      ],
     },
     {
       'title': 'The Romantics',
       'subtitle': 'Passionate verses',
-      'authors': ['William Wordsworth', 'John Keats', 'Lord Byron'],
+      'authors': [
+        'William Wordsworth',
+        'John Keats',
+        'Lord Byron',
+        'Percy Bysshe Shelley',
+        'Samuel Taylor Coleridge',
+        'William Blake',
+        'Mary Shelley',
+        'Sir Walter Scott',
+      ],
     },
     {
       'title': 'Modernist Voices',
       'subtitle': 'New perspectives',
-      'authors': ['Virginia Woolf', 'James Joyce', 'T.S. Eliot'],
+      'authors': [
+        'Virginia Woolf',
+        'James Joyce',
+        'T.S. Eliot',
+        'Ezra Pound',
+        'Gertrude Stein',
+        'Marcel Proust',
+        'Franz Kafka',
+        'William Faulkner',
+      ],
     },
     {
       'title': 'Women of Letters',
@@ -439,27 +466,67 @@ class _BrowseHubPageState extends State<BrowseHubPage> {
         'Jane Austen',
         'Emily Dickinson',
         'Sylvia Plath',
+        'George Eliot',
+        'Charlotte Brontë',
+        'Simone de Beauvoir',
+        'Mary Wollstonecraft',
       ],
     },
     {
       'title': 'Russian Greats',
       'subtitle': 'Literary giants',
-      'authors': ['Leo Tolstoy', 'Fyodor Dostoevsky', 'Anton Chekhov'],
+      'authors': [
+        'Leo Tolstoy',
+        'Fyodor Dostoevsky',
+        'Anton Chekhov',
+        'Alexander Pushkin',
+        'Nikolai Gogol',
+        'Ivan Turgenev',
+        'Mikhail Bulgakov',
+        'Boris Pasternak',
+      ],
     },
     {
       'title': 'The Transcendentalists',
       'subtitle': 'Nature & individualism',
-      'authors': ['Ralph Waldo Emerson', 'Henry David Thoreau', 'Walt Whitman'],
+      'authors': [
+        'Ralph Waldo Emerson',
+        'Henry David Thoreau',
+        'Walt Whitman',
+        'Margaret Fuller',
+        'Bronson Alcott',
+        'Orestes Brownson',
+        'Jones Very',
+        'Theodore Parker',
+      ],
     },
     {
       'title': 'Political Minds',
       'subtitle': 'Historic speeches',
-      'authors': ['Winston Churchill', 'Abraham Lincoln', 'Mahatma Gandhi'],
+      'authors': [
+        'Winston Churchill',
+        'Abraham Lincoln',
+        'Mahatma Gandhi',
+        'Nelson Mandela',
+        'Martin Luther King Jr.',
+        'Thomas Jefferson',
+        'John Locke',
+        'Niccolò Machiavelli',
+      ],
     },
     {
       'title': 'Existential Currents',
       'subtitle': 'Meaning & absurdity',
-      'authors': ['Albert Camus', 'Jean-Paul Sartre', 'Friedrich Nietzsche'],
+      'authors': [
+        'Albert Camus',
+        'Jean-Paul Sartre',
+        'Friedrich Nietzsche',
+        'Søren Kierkegaard',
+        'Simone de Beauvoir',
+        'Martin Heidegger',
+        'Fyodor Dostoevsky',
+        'Franz Kafka',
+      ],
     },
   ];
 
@@ -762,49 +829,52 @@ class _BrowseHubPageState extends State<BrowseHubPage> {
     final preview = (authors.take(2).toList())..sort();
     final subtitle = 'Authors like ${preview.join(', ')}';
 
-    final tileContent = Card(
-      elevation: 0,
-      color: lbTheme?.controlSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: lbTheme?.controlBorder ?? cs.outline.withOpacity(0.2),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              cs.primary.withOpacity(0.05),
-              cs.secondary.withOpacity(0.05),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+    final tileContent = SizedBox(
+      width: double.infinity,
+      child: Card(
+        elevation: 0,
+        color: lbTheme?.controlSurface,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: lbTheme?.controlBorder ?? cs.outline.withOpacity(0.2),
+          ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurface.withOpacity(0.7),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                cs.primary.withOpacity(0.05),
+                cs.secondary.withOpacity(0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              ],
+            ),
           ),
         ),
       ),

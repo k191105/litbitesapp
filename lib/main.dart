@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/quote_app.dart';
 import 'package:quotes_app/services/notification_service.dart';
+import 'package:quotes_app/services/purchase_service.dart';
+import 'package:quotes_app/services/revenuecat_keys.dart';
 import 'package:quotes_app/services/theme_controller.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 
@@ -9,7 +11,13 @@ Future<void> main() async {
   tz.initializeTimeZones();
   await NotificationService.init();
   await ThemeController.instance.init();
+  await PurchaseService.instance.configure(iosApiKey: rcAppleApiKey);
   runApp(const MyApp());
+
+  // Handle notification that launched the app after first frame
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    NotificationService.handleInitialNotification();
+  });
 }
 
 class MyApp extends StatefulWidget {

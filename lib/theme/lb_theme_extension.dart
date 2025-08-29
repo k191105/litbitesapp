@@ -64,9 +64,9 @@ class LBTheme extends ThemeExtension<LBTheme> {
     final isTangerine = textTheme.fontFamily == 'Tangerine';
 
     return textTheme.copyWith(
-      fontSize: isTangerine ? fontSize * 1.3 : fontSize, // Boost Tangerine size
+      fontSize: isTangerine ? fontSize * 1.2 : fontSize, // Boost Tangerine size
       fontWeight: isTangerine
-          ? FontWeight.w500
+          ? FontWeight.w600
           : FontWeight.w300, // Boost Tangerine weight
       color: const Color.fromARGB(255, 166, 165, 165),
     );
@@ -78,7 +78,9 @@ class LBTheme extends ThemeExtension<LBTheme> {
     final isTangerine = textTheme.fontFamily == 'Tangerine';
 
     return textTheme.copyWith(
-      fontSize: isTangerine ? fontSize * 1.2 : fontSize, // Boost Tangerine size
+      fontSize: isTangerine
+          ? fontSize * 1.15
+          : fontSize, // Boost Tangerine size
       fontWeight: isTangerine
           ? FontWeight.w500
           : FontWeight.w300, // Boost Tangerine weight

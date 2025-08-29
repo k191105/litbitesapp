@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
 
@@ -33,12 +34,12 @@ class SrsItem {
 
   factory SrsItem.fromJson(Map<String, dynamic> json) => SrsItem(
     quoteId: json['quoteId'],
-    reps: json['reps'],
-    lapses: json['lapses'],
-    ease: json['ease'],
-    interval: json['interval'],
+    reps: json['reps'] ?? 0,
+    lapses: json['lapses'] ?? 0,
+    ease: json['ease'] ?? 2.5,
+    interval: json['interval'] ?? 0,
     due: DateTime.parse(json['due']),
-    lastResult: json['lastResult'],
+    lastResult: json['lastResult'] ?? 'new',
   );
 }
 
@@ -79,14 +80,14 @@ class SRSService {
     final items = _srsItems.values
         .where((item) => !item.due.isAfter(today))
         .toList();
-    items.sort((a, b) => b.lapses.compareTo(a.lapses));
+    items.sort((a, b) => a.due.compareTo(b.due));
     return items.map((item) => item.quoteId).toList();
   }
 
   Future<List<String>> getStruggledQuotes() async {
     await _load();
     return _srsItems.values
-        .where((item) => item.lapses > 0)
+        .where((item) => item.lastResult == 'incorrect')
         .map((item) => item.quoteId)
         .toList();
   }
@@ -104,18 +105,34 @@ class SRSService {
     required DateTime today,
   }) async {
     await _load();
-    final item = _srsItems[quoteId];
-    if (item != null) {
-      if (correct) {
-        item.reps++;
+    final item = _srsItems[quoteId] ?? SrsItem(quoteId: quoteId, due: today);
+
+    if (correct) {
+      item.reps++;
+      if (item.reps == 1) {
+        item.interval = 1;
+      } else if (item.reps == 2) {
+        item.interval = 6;
       } else {
-        item.lapses++;
-        item.reps = 0; // Reset reps on failure
+        item.interval = (item.interval * item.ease).round();
       }
-      // This is a placeholder. A real implementation would use SM-2 logic.
-      _srsItems[quoteId] = item;
-      await _save();
+      item.lastResult = 'correct';
+    } else {
+      item.lapses++;
+      item.interval = 0;
+      item.reps = 0;
+      item.lastResult = 'incorrect';
     }
+
+    item.ease = max(
+      1.3,
+      item.ease +
+          0.1 -
+          (5 - (correct ? 5 : 1)) * (0.08 + (5 - (correct ? 5 : 1)) * 0.02),
+    );
+    item.due = today.add(Duration(days: item.interval));
+    _srsItems[quoteId] = item;
+    await _save();
   }
 
   Future<void> addQuote(String quoteId) async {

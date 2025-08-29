@@ -83,25 +83,25 @@ class _AboutPageState extends State<AboutPage> {
                 color: Theme.of(context).primaryColor,
               ),
             ),
-            if (kDebugMode)
-              ListTile(
-                leading: const Icon(Icons.developer_mode),
-                title: const Text('Developer Panel'),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const DevPanelPage(),
-                    ),
-                  );
-                },
-              ),
-            const SizedBox(height: 24),
-            Text(
-              'Version: ${_packageInfo.version}+${_packageInfo.buildNumber}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
+            // if (kDebugMode)
+            //   ListTile(
+            //     leading: const Icon(Icons.developer_mode),
+            //     title: const Text('Developer Panel'),
+            //     onTap: () {
+            //       Navigator.push(
+            //         context,
+            //         MaterialPageRoute(
+            //           builder: (context) => const DevPanelPage(),
+            //         ),
+            //       );
+            //     },
+            //   ),
+            // const SizedBox(height: 24),
+            // Text(
+            //   'Version: ${_packageInfo.version}+${_packageInfo.buildNumber}',
+            //   textAlign: TextAlign.center,
+            //   style: Theme.of(context).textTheme.bodyLarge,
+            // ),
           ],
         ),
       ),
