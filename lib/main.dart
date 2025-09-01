@@ -12,6 +12,8 @@ Future<void> main() async {
   await NotificationService.init();
   await ThemeController.instance.init();
   await PurchaseService.instance.configure(iosApiKey: rcAppleApiKey);
+  // Force entitlement sync on launch
+  await PurchaseService.instance.syncEntitlementFromRC();
   runApp(const MyApp());
 
   // Handle notification that launched the app after first frame
@@ -27,21 +29,30 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     ThemeController.instance.addListener(_onThemeChanged);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     ThemeController.instance.removeListener(_onThemeChanged);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   void _onThemeChanged() {
     setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      PurchaseService.instance.syncEntitlementFromRC();
+    }
   }
 
   @override

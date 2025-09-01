@@ -125,6 +125,8 @@ class QuoteAppState extends State<QuoteApp>
 
       // Sync notifications with current preferences
       _syncNotifications();
+      // Sync entitlements from RevenueCat whenever app resumes
+      PurchaseService.instance.syncEntitlementFromRC();
     }
   }
 
@@ -238,6 +240,8 @@ class QuoteAppState extends State<QuoteApp>
         iosApiKey: rcAppleApiKey,
         // Android deferred
       );
+      // Immediately sync entitlements from RevenueCat after configuration
+      await PurchaseService.instance.syncEntitlementFromRC();
 
       setState(() {
         _allQuotes = quotes;

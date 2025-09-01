@@ -583,7 +583,9 @@ class _PaywallState extends State<Paywall> {
           children: [
             TextButton(
               onPressed: () => launchUrl(
-                Uri.parse('https://www.literaturebites.com/privacy'),
+                Uri.parse(
+                  'https://singhalkrishiv.wixsite.com/literature-bites/privacy-policy',
+                ),
               ),
               child: Text(
                 'Privacy',
@@ -600,8 +602,11 @@ class _PaywallState extends State<Paywall> {
               ),
             ),
             TextButton(
-              onPressed: () =>
-                  launchUrl(Uri.parse('https://www.literaturebites.com/terms')),
+              onPressed: () => launchUrl(
+                Uri.parse(
+                  'https://singhalkrishiv.wixsite.com/literature-bites/privacy-policy',
+                ),
+              ),
               child: Text(
                 'Terms',
                 style: TextStyle(

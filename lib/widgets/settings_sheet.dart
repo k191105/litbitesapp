@@ -580,14 +580,18 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text('About'),
-          onTap: () =>
-              launchUrl(Uri.parse('https://www.literaturebites.com/about')),
+          onTap: () => launchUrl(
+            Uri.parse('https://singhalkrishiv.wixsite.com/literature-bites'),
+          ),
         ),
         ListTile(
           leading: const Icon(Icons.privacy_tip_outlined),
           title: const Text('Privacy & Terms'),
-          onTap: () =>
-              launchUrl(Uri.parse('https://www.literaturebites.com/privacy')),
+          onTap: () => launchUrl(
+            Uri.parse(
+              'https://singhalkrishiv.wixsite.com/literature-bites/privacy-policys',
+            ),
+          ),
         ),
       ],
     );
