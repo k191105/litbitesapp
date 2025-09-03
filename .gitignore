@@ -54,3 +54,6 @@ ios/Runner/Assets.xcassets/AppIcon.appiconset/*
 # Ignore Android launcher icons
 android/app/src/main/res/mipmap-*/ic_launcher.png
 # !assets/data/quotes.json
+
+# Ignore secrets
+literaturebites/assets/data/verification/secret.py

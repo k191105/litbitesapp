@@ -11,6 +11,7 @@ import 'package:quotes_app/widgets/notification_editor_sheet.dart';
 import 'package:quotes_app/quote.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/services/purchase_service.dart';
+import 'package:quotes_app/services/revenuecat_keys.dart';
 
 class SettingsSheet extends StatefulWidget {
   final List<Quote>? allQuotes;
@@ -75,15 +76,26 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
   Future<void> _handleRestore() async {
     Analytics.instance.logEvent('settings.restore');
+    final isProBefore = await EntitlementsService.instance.isPro();
+
     try {
-      await PurchaseService.instance.restore();
+      final customerInfo = await PurchaseService.instance.restore();
+      final isProAfter =
+          customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchases restored successfully.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (isProAfter && !isProBefore) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Purchases restored successfully.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No new purchases to restore.')),
+          );
+        }
         _loadProStatus();
       }
     } catch (e) {

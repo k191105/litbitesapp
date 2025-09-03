@@ -130,11 +130,12 @@ class PurchaseService {
   }
 
   /// Restore purchases
-  Future<void> restore() async {
+  Future<CustomerInfo> restore() async {
     await Analytics.instance.logEvent('purchase.restore_start');
     try {
-      await Purchases.restorePurchases();
+      final customerInfo = await Purchases.restorePurchases();
       await Analytics.instance.logEvent('purchase.restore_success');
+      return customerInfo;
     } catch (e) {
       await Analytics.instance.logEvent('purchase.restore_error', {
         'error': e.toString(),

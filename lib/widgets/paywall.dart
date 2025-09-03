@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/purchase_service.dart';
 import 'package:quotes_app/services/revenuecat_keys.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
+import 'package:quotes_app/services/entitlements_service.dart';
 
 class Paywall extends StatefulWidget {
   final String contextKey;
@@ -363,7 +363,7 @@ class _PaywallState extends State<Paywall> {
     final isSelected = _selectedPlan == plan;
 
     final rawName = PurchaseService.instance.getPlanDisplayName(plan);
-    final planName = (rawName != null && rawName.trim().isNotEmpty)
+    final planName = (rawName.trim().isNotEmpty)
         ? rawName
         : (plan == PurchasePlan.annual ? 'Pro Annual' : 'Pro Monthly');
 
@@ -664,17 +664,27 @@ class _PaywallState extends State<Paywall> {
 
   Future<void> _handleRestore() async {
     Analytics.instance.logEvent('paywall.restore');
+    final isProBefore = await EntitlementsService.instance.isPro();
 
     try {
-      await PurchaseService.instance.restore();
+      final customerInfo = await PurchaseService.instance.restore();
+      final isProAfter =
+          customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchases restored successfully.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (isProAfter && !isProBefore) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Purchases restored successfully.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.of(context).pop(true); // Pop paywall on success
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No new purchases to restore.')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

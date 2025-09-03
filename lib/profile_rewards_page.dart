@@ -7,6 +7,8 @@ import 'package:quotes_app/utils/feature_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/services/purchase_service.dart';
+import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/services/revenuecat_keys.dart';
 
 class ProfileRewardsPage extends StatefulWidget {
   const ProfileRewardsPage({super.key});
@@ -477,15 +479,26 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
 
   Future<void> _handleRestore() async {
     Analytics.instance.logEvent('profile.restore');
+    final isProBefore = await EntitlementsService.instance.isPro();
+
     try {
-      await PurchaseService.instance.restore();
+      final customerInfo = await PurchaseService.instance.restore();
+      final isProAfter =
+          customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchases restored successfully.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (isProAfter && !isProBefore) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Purchases restored successfully.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No new purchases to restore.')),
+          );
+        }
         _loadData();
       }
     } catch (e) {
