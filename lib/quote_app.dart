@@ -400,6 +400,7 @@ class QuoteAppState extends State<QuoteApp>
       if (_favoriteQuotes.contains(currentQuote)) {
         _favoriteQuotes.remove(currentQuote);
         _srsService.removeQuote(currentQuote.id);
+        _heartAnimationController.reset();
       } else {
         _favoriteQuotes.add(currentQuote);
         _likeCounts[currentQuote.id] = (_likeCounts[currentQuote.id] ?? 0) + 1;
@@ -841,21 +842,44 @@ class QuoteAppState extends State<QuoteApp>
                       },
                       itemCount: _pageViewItems.length,
                     ),
-                    DetailsCard(
-                      quote:
-                          _quotes.isNotEmpty && _currentIndex < _quotes.length
-                          ? _quotes[_currentIndex]
-                          : Quote(
-                              id: 'loading',
-                              text: 'Loading...',
-                              authorName: '',
-                              themes: [],
-                              tags: [],
-                              status: 'loading',
+                    GestureDetector(
+                      onDoubleTap: () {
+                        HapticFeedback.lightImpact();
+                        _toggleFavorite();
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          DetailsCard(
+                            quote:
+                                _quotes.isNotEmpty &&
+                                    _currentIndex < _quotes.length
+                                ? _quotes[_currentIndex]
+                                : Quote(
+                                    id: 'loading',
+                                    text: 'Loading...',
+                                    authorName: '',
+                                    themes: [],
+                                    tags: [],
+                                    status: 'loading',
+                                  ),
+                            onHide: _hideSecondPage,
+                            buildTagChip: _buildTagChip,
+                            controller: _detailsScrollController,
+                          ),
+                          FadeTransition(
+                            opacity: _heartAnimation,
+                            child: ScaleTransition(
+                              scale: _heartAnimation,
+                              child: Icon(
+                                Icons.favorite,
+                                size: 120,
+                                color: Colors.red.withOpacity(0.8),
+                              ),
                             ),
-                      onHide: _hideSecondPage,
-                      buildTagChip: _buildTagChip,
-                      controller: _detailsScrollController,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

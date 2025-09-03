@@ -670,7 +670,10 @@ class _PaywallState extends State<Paywall> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No purchases to restore.')),
+          const SnackBar(
+            content: Text('Purchases restored successfully.'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {

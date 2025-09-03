@@ -10,6 +10,7 @@ import 'package:quotes_app/models/notification_prefs.dart';
 import 'package:quotes_app/widgets/notification_editor_sheet.dart';
 import 'package:quotes_app/quote.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:quotes_app/services/purchase_service.dart';
 
 class SettingsSheet extends StatefulWidget {
   final List<Quote>? allQuotes;
@@ -70,6 +71,31 @@ class _SettingsSheetState extends State<SettingsSheet> {
         });
       }
     });
+  }
+
+  Future<void> _handleRestore() async {
+    Analytics.instance.logEvent('settings.restore');
+    try {
+      await PurchaseService.instance.restore();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Purchases restored successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadProStatus();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -569,13 +595,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ListTile(
           leading: const Icon(Icons.restore),
           title: const Text('Restore Purchases'),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Restore functionality coming soon.'),
-              ),
-            );
-          },
+          onTap: _handleRestore,
         ),
         ListTile(
           leading: const Icon(Icons.info_outline),
