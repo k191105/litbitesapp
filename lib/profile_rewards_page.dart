@@ -3,12 +3,18 @@ import 'package:lottie/lottie.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/rewards_service.dart';
 import 'package:quotes_app/info_card.dart';
-import 'package:quotes_app/utils/feature_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/services/purchase_service.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/services/revenuecat_keys.dart';
+import 'package:quotes_app/utils/membership_feedback.dart';
+import 'package:quotes_app/browse_hub.dart';
+import 'package:quotes_app/learn_hub.dart';
+import 'package:quotes_app/widgets/settings_sheet.dart';
+import 'package:quotes_app/quote.dart';
+import 'package:quotes_app/quote_service.dart';
+import 'package:quotes_app/utils/feature_gate.dart';
 
 class ProfileRewardsPage extends StatefulWidget {
   const ProfileRewardsPage({super.key});
@@ -19,8 +25,15 @@ class ProfileRewardsPage extends StatefulWidget {
 
 class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   late Future<RewardsSnapshot> _rewardsFuture;
-  int? _longestStreak; // TODO: Track this properly
   int _favoriteQuotesCount = 0;
+  List<Quote> _allQuotes = [];
+  List<Quote> _favoriteQuotes = [];
+  Map<String, int> _viewCounts = {};
+  Map<String, int> _likeCounts = {};
+  bool _isRestoring = false;
+  bool _isRefreshing = false;
+
+  bool get _isMembershipBusy => _isRestoring || _isRefreshing;
 
   @override
   void initState() {
@@ -38,6 +51,12 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   Future<void> _loadStats() async {
     final prefs = await SharedPreferences.getInstance();
     final favoriteIds = prefs.getStringList('favoriteQuoteIds') ?? [];
+
+    _allQuotes = await QuoteService.loadQuotes();
+    _favoriteQuotes = _allQuotes
+        .where((q) => favoriteIds.contains(q.id))
+        .toList();
+
     setState(() {
       _favoriteQuotesCount = favoriteIds.length;
     });
@@ -56,40 +75,44 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
         elevation: 0,
         iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
-      body: FutureBuilder<RewardsSnapshot>(
-        future: _rewardsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData) {
-            return const Center(child: Text('No data available.'));
-          }
+      body: MembershipFeedback.loadingOverlay(
+        context,
+        isLoading: _isMembershipBusy,
+        child: FutureBuilder<RewardsSnapshot>(
+          future: _rewardsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else if (!snapshot.hasData) {
+              return const Center(child: Text('No data available.'));
+            }
 
-          final rewards = snapshot.data!;
-          return RefreshIndicator(
-            onRefresh: () async => _loadData(),
-            child: ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                _buildHeader(rewards.tier),
-                const SizedBox(height: 24),
-                _buildActivePasses(
-                  rewards.activePasses,
-                  isPro: rewards.tier == "Pro",
-                ),
-                const SizedBox(height: 24),
-                if (rewards.nextPass != null)
-                  _buildNextReward(rewards.nextPass!),
-                const SizedBox(height: 24),
-                _buildUsageStats(rewards),
-                const SizedBox(height: 24),
-                _buildFooter(),
-              ],
-            ),
-          );
-        },
+            final rewards = snapshot.data!;
+            return RefreshIndicator(
+              onRefresh: () async => _loadData(),
+              child: ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  _buildHeader(rewards.tier),
+                  const SizedBox(height: 24),
+                  _buildActivePasses(
+                    rewards.activePasses,
+                    isPro: rewards.tier == "Pro",
+                  ),
+                  const SizedBox(height: 24),
+                  if (rewards.nextPass != null)
+                    _buildNextReward(rewards.nextPass!),
+                  const SizedBox(height: 24),
+                  _buildUsageStats(rewards),
+                  const SizedBox(height: 24),
+                  _buildFooter(),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -198,18 +221,61 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
     );
   }
 
+  void _navigateToFeature(String featureKey) {
+    switch (featureKey) {
+      case EntitlementsService.browseAuthor:
+      case EntitlementsService.browsePeriod:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BrowseHubPage(
+              allQuotes: _allQuotes,
+              favoriteQuotes: _favoriteQuotes,
+              viewCounts: _viewCounts,
+              initialSelectedAuthors: const {},
+              initialSelectedTags: const {},
+            ),
+          ),
+        );
+        break;
+      case EntitlementsService.premiumThemes:
+      case EntitlementsService.premiumFonts:
+      case EntitlementsService.premiumShareStyles:
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => FractionallySizedBox(
+            heightFactor: 0.75,
+            child: SettingsSheet(
+              allQuotes: _allQuotes,
+              favoriteQuotes: _favoriteQuotes,
+              viewCounts: _viewCounts,
+            ),
+          ),
+        );
+        break;
+      case EntitlementsService.srsUnlimited:
+      case EntitlementsService.learnTrainer:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LearnHubPage(
+              allQuotes: _allQuotes,
+              favoriteQuotes: _favoriteQuotes,
+              viewCounts: _viewCounts,
+              likeCounts: _likeCounts,
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
   Widget _buildActivePasses(List<ActivePass> passes, {required bool isPro}) {
     if (isPro) {
-      final proFeatures = [
-        'Premium Quote Library',
-        'Browse by Author',
-        'Browse by Period',
-        'Curated Author Collections',
-        'Premium Themes',
-        'Premium Fonts',
-        'Personalised Notifications',
-        'Personalised Learning',
-      ];
+      final proFeatures = EntitlementsService.proFeatureDisplayNames.values
+          .toList();
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -325,13 +391,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
                         Analytics.instance.logEvent('profile.active_pass_try', {
                           'feature': pass.featureKey,
                         });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Available once feature entry points ship',
-                            ),
-                          ),
-                        );
+                        _navigateToFeature(pass.featureKey);
                       },
                       child: const Text(
                         'Try',
@@ -433,7 +493,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
               child: _buildStatCard(
                 context,
                 'Longest Streak',
-                _longestStreak?.toString() ?? '—',
+                '—',
                 Icons.trending_up,
               ),
             ),
@@ -453,64 +513,149 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   }
 
   Widget _buildFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: TextButton(
-            onPressed: _handleRestore,
-            child: const Text('Restore Purchases'),
-          ),
+        FilledButton(
+          onPressed: _isRestoring ? null : _handleRestore,
+          child: _isRestoring
+              ? _buildButtonSpinner(theme)
+              : const Text('Restore Purchases'),
         ),
-        Expanded(
-          child: TextButton(
-            onPressed: () async {
-              await launchUrl(
-                Uri.parse('itms-apps://apps.apple.com/account/subscriptions'),
-                mode: LaunchMode.externalApplication,
-              );
-            },
-            child: const Text('Manage Subscription'),
-          ),
+        TextButton(
+          onPressed: () async {
+            await launchUrl(
+              Uri.parse('itms-apps://apps.apple.com/account/subscriptions'),
+              mode: LaunchMode.externalApplication,
+            );
+          },
+          child: const Text('Manage Subscription'),
+        ),
+        FilledButton(
+          onPressed: _isRefreshing ? null : _handleRefresh,
+          child: _isRefreshing
+              ? _buildButtonSpinner(theme)
+              : const Text('Refresh Membership Status'),
         ),
       ],
     );
   }
 
   Future<void> _handleRestore() async {
+    if (_isRestoring) return;
+    setState(() {
+      _isRestoring = true;
+    });
     Analytics.instance.logEvent('profile.restore');
+    final start = DateTime.now();
     final isProBefore = await EntitlementsService.instance.isPro();
+    debugPrint(
+      '[MembershipFlow][restore] Restore started at ${start.toIso8601String()}',
+    );
 
     try {
       final customerInfo = await PurchaseService.instance.restore();
       final isProAfter =
           customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
+      if (!mounted) return;
 
-      if (mounted) {
-        if (isProAfter && !isProBefore) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Purchases restored successfully.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No new purchases to restore.')),
-          );
-        }
-        _loadData();
-      }
+      final restored = isProAfter && !isProBefore;
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][restore] Completed in ${durationMs}ms | restored=$restored | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
+      );
+      await MembershipFeedback.showMessage(
+        context,
+        title: restored ? 'Restore Complete' : 'No Purchases Found',
+        message: restored
+            ? 'Membership restored. Welcome to Literature Bites Pro!'
+            : 'No purchases to restore.',
+      );
+      _loadData();
     } catch (e) {
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][restore] Failed in ${durationMs}ms | error=$e',
+      );
+      if (!mounted) return;
+      await MembershipFeedback.showMessage(
+        context,
+        title: 'Restore Failed',
+        message: 'Restore failed: $e',
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Restore failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isRestoring = false;
+        });
       }
     }
+  }
+
+  Future<void> _handleRefresh() async {
+    if (_isRefreshing) return;
+    setState(() {
+      _isRefreshing = true;
+    });
+    Analytics.instance.logEvent('profile.refresh_membership');
+    final start = DateTime.now();
+    final isProBefore = await EntitlementsService.instance.isPro();
+    debugPrint(
+      '[MembershipFlow][refresh] Refresh started at ${start.toIso8601String()}',
+    );
+
+    try {
+      final customerInfo = await PurchaseService.instance
+          .syncEntitlementFromRC();
+      final isProAfter =
+          customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
+
+      if (!mounted) return;
+
+      final gainedPro = isProAfter && !isProBefore;
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][refresh] Completed in ${durationMs}ms | gainedPro=$gainedPro | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
+      );
+      await MembershipFeedback.showMessage(
+        context,
+        title: gainedPro ? 'Membership Updated' : 'Already Up To Date',
+        message: gainedPro
+            ? 'Membership restored. Welcome to Literature Bites Pro!'
+            : 'Membership status is up to date.',
+      );
+      _loadData();
+    } catch (e) {
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][refresh] Failed in ${durationMs}ms | error=$e',
+      );
+      if (!mounted) return;
+      await MembershipFeedback.showMessage(
+        context,
+        title: 'Refresh Failed',
+        message: 'Could not refresh membership. $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildButtonSpinner(ThemeData theme) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.onPrimary),
+      ),
+    );
   }
 
   Widget _buildStatCard(

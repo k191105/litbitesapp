@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/services/streak_service.dart';
@@ -48,32 +47,20 @@ class RewardsService {
   static final RewardsService instance = RewardsService._();
   RewardsService._();
 
-  static const _featureDisplayNames = {
-    EntitlementsService.browseTags: 'Browse by Tag',
-    EntitlementsService.browseAuthor: 'Browse by Author',
-    EntitlementsService.browsePeriod: 'Browse by Period',
-    EntitlementsService.premiumThemes: 'Premium Themes',
-    EntitlementsService.premiumFonts: 'Premium Fonts',
-    EntitlementsService.premiumShareStyles: 'Share Styles',
-    EntitlementsService.srsUnlimited: 'SRS Unlimited',
-  };
+  int _calculateNextMilestone(int currentStreak) {
+    const interval = 3;
+    if (currentStreak == 0) return interval;
+    return ((currentStreak / interval).floor() + 1) * interval;
+  }
 
-  static final _proFeatures = [
-    EntitlementsService.browseAuthor, // Now gated
-    EntitlementsService.browsePeriod,
-    EntitlementsService.premiumThemes,
-    EntitlementsService.premiumFonts,
-    EntitlementsService.premiumShareStyles,
-    EntitlementsService.srsUnlimited,
-    // Note: browseTags removed as it's now free
-  ];
-
-  static const _milestoneRewards = {
-    7: [EntitlementsService.browseAuthor],
-    14: [EntitlementsService.browsePeriod],
-    21: [EntitlementsService.premiumThemes],
-    30: [EntitlementsService.premiumFonts],
-  };
+  List<String> _getFeaturesForMilestone(int milestone) {
+    // Cycle through the pro features list for rewards
+    final rewardableFeatures = EntitlementsService.proFeatureDisplayNames.keys
+        .toList();
+    final cycleIndex =
+        ((milestone / 3) - 1).floor() % rewardableFeatures.length;
+    return [rewardableFeatures[cycleIndex]];
+  }
 
   Future<RewardsSnapshot> load() async {
     final isPro = await EntitlementsService.instance.isPro();
@@ -95,7 +82,8 @@ class RewardsService {
           activePasses.add(
             ActivePass(
               featureKey: key,
-              displayName: _featureDisplayNames[key] ?? key,
+              displayName:
+                  EntitlementsService.proFeatureDisplayNames[key] ?? key,
               timeRemaining: remaining,
             ),
           );
@@ -108,9 +96,9 @@ class RewardsService {
       final nextMilestone = _calculateNextMilestone(streakCount);
       final daysRemaining = nextMilestone - streakCount;
       final features = _getFeaturesForMilestone(nextMilestone);
-      final featureDisplayNames = nextMilestone == 7
-          ? ['Mystery Pro Feature']
-          : features.map((f) => _featureDisplayNames[f] ?? f).toList();
+      final featureDisplayNames = features
+          .map((f) => EntitlementsService.proFeatureDisplayNames[f] ?? f)
+          .toList();
 
       nextPass = NextPassInfo(
         nextMilestone: nextMilestone,
@@ -126,37 +114,5 @@ class RewardsService {
       nextPass: nextPass,
       currentStreak: streakCount,
     );
-  }
-
-  int _calculateNextMilestone(int currentStreak) {
-    if (currentStreak < 7) return 7;
-    if (currentStreak < 14) return 14;
-    if (currentStreak < 21) return 21;
-    if (currentStreak < 30) return 30;
-
-    const baseMilestone = 30;
-    const interval = 7;
-    final cyclesPastBase = ((currentStreak - baseMilestone) / interval).floor();
-    return baseMilestone + (cyclesPastBase + 1) * interval;
-  }
-
-  List<String> _getFeaturesForMilestone(int milestone) {
-    if (milestone == 7) {
-      return [EntitlementsService.browseAuthor];
-    }
-    var key = milestone;
-    if (!_milestoneRewards.containsKey(key)) {
-      if (key > 30) {
-        final rewardKeys = [
-          EntitlementsService.browseAuthor,
-          EntitlementsService.browsePeriod,
-          EntitlementsService.premiumThemes,
-          EntitlementsService.premiumFonts,
-        ];
-        final cycleIndex = ((key - 31) ~/ 7) % rewardKeys.length;
-        return [rewardKeys[cycleIndex]];
-      }
-    }
-    return _milestoneRewards[key] ?? [];
   }
 }

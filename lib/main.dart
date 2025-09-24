@@ -12,8 +12,6 @@ Future<void> main() async {
   await NotificationService.init();
   await ThemeController.instance.init();
   await PurchaseService.instance.configure(iosApiKey: rcAppleApiKey);
-  // Force entitlement sync on launch
-  await PurchaseService.instance.syncEntitlementFromRC();
   runApp(const MyApp());
 
   // Handle notification that launched the app after first frame
@@ -51,7 +49,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      PurchaseService.instance.syncEntitlementFromRC();
+      // Only sync if user has active subscriptions to avoid unnecessary network calls
+      PurchaseService.instance.syncEntitlementFromRC().catchError((_) {
+        // Silently handle sync errors on resume
+      });
     }
   }
 

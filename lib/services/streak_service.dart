@@ -16,18 +16,6 @@ class StreakService {
   static const _weeklyViewKey =
       'weekly_view'; // Stores list of local date strings "YYYY-MM-DD"
 
-  // Milestone definitions
-  static const _milestoneDays = [3, 7, 14, 21, 30];
-  static const _repeatingMilestoneInterval = 7;
-
-  // Feature pass mapping
-  static const _milestoneRewards = {
-    7: ['search'],
-    14: ['browse_period'], // Removed browse_tags as it's now free
-    21: ['premium_themes'],
-    30: ['premium_fonts'],
-  };
-
   String getTodayLocal() {
     final now = DateTime.now();
     return DateFormat('yyyy-MM-dd').format(now);
@@ -114,27 +102,27 @@ class StreakService {
     int? newMilestone;
     List<String> awardedFeatureKeys = [];
 
-    int milestoneCandidate = _getMilestoneForStreak(streakCount);
-    if (milestoneCandidate > 0 &&
-        !milestonesShown.contains(milestoneCandidate)) {
-      newMilestone = milestoneCandidate;
+    final isMilestoneDay = streakCount > 0 && streakCount % 3 == 0;
+
+    if (isMilestoneDay && !milestonesShown.contains(streakCount)) {
+      newMilestone = streakCount;
       milestonesShown.add(newMilestone);
       await Analytics.instance.logEvent('streak.milestone_shown', {
         'n': newMilestone,
       });
 
-      // Grant feature passes
-      final features = _getFeaturesForMilestone(newMilestone);
-      if (features.isNotEmpty) {
-        awardedFeatureKeys.addAll(features);
-        for (var featureKey in features) {
-          await EntitlementsService.instance.grantFeaturePass(
-            featureKey,
-            const Duration(days: 7),
-            source: 'streak_$newMilestone',
-          );
-        }
-      }
+      // Grant feature passes by cycling through the pro features
+      final proFeatures = EntitlementsService.proFeatureDisplayNames.keys
+          .toList();
+      final cycleIndex = ((newMilestone / 3) - 1).floor() % proFeatures.length;
+      final featureToAward = proFeatures[cycleIndex];
+      awardedFeatureKeys.add(featureToAward);
+
+      await EntitlementsService.instance.grantFeaturePass(
+        featureToAward,
+        const Duration(days: 7),
+        source: 'streak_$newMilestone',
+      );
     }
 
     await _saveData(
@@ -154,35 +142,9 @@ class StreakService {
     };
   }
 
-  int _getMilestoneForStreak(int streak) {
-    if (_milestoneDays.contains(streak)) {
-      return streak;
-    }
-    if (streak > _milestoneDays.last &&
-        (streak - _milestoneDays.last) % _repeatingMilestoneInterval == 0) {
-      return streak;
-    }
-    return 0;
-  }
-
   String? _getAnimationForMilestone(int? milestone) {
     if (milestone == null) return null;
-    if (milestone == 3) return 'confetti';
-    if (_milestoneDays.contains(milestone) || milestone > _milestoneDays.last)
-      return 'fireworks';
-    return null;
-  }
-
-  List<String> _getFeaturesForMilestone(int milestone) {
-    int key = milestone;
-    if (!_milestoneRewards.containsKey(key)) {
-      // Handle repeating milestones (e.g., 37, 44, ...)
-      if (key > 30) {
-        int cycleIndex = ((key - 31) ~/ 7) % _milestoneRewards.length;
-        key = _milestoneRewards.keys.elementAt(cycleIndex);
-      }
-    }
-    return _milestoneRewards[key] ?? [];
+    return milestone % 2 == 1 ? 'confetti' : 'fireworks';
   }
 
   Future<int> getStreakCount() async {

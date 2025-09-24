@@ -14,9 +14,43 @@ class QuoteService {
       final String jsonString = await rootBundle.loadString(
         'assets/data/quotes.json',
       );
-      final List<dynamic> jsonData = json.decode(jsonString);
+      final dynamic decoded = json.decode(jsonString);
 
-      _cachedQuotes = jsonData.map((json) => Quote.fromJson(json)).toList();
+      if (decoded is! List) {
+        throw FormatException(
+          'Top-level JSON must be a List, got ${decoded.runtimeType}',
+        );
+      }
+
+      final List<dynamic> parsed = decoded;
+      final List<Quote> result = [];
+
+      for (var i = 0; i < parsed.length; i++) {
+        final entry = parsed[i];
+        try {
+          if (entry is Map<String, dynamic>) {
+            result.add(Quote.fromJson(entry));
+          } else if (entry is Map) {
+            // Handle Map<dynamic, dynamic> by creating a typed map
+            result.add(Quote.fromJson(Map<String, dynamic>.from(entry)));
+          } else {
+            // Non-object element — warn and skip
+            print(
+              'Skipping element at index $i: expected object, got ${entry.runtimeType}',
+            );
+          }
+        } catch (e, st) {
+          final id = (entry is Map) ? entry['id'] : null;
+          print(
+            'Failed to parse quote at index $i${id != null ? " (id: $id)" : ""}: $e',
+          );
+          // Uncomment to see stack trace if needed
+          // print(st);
+          continue; // keep current behavior: bail out so you notice the bad item
+        }
+      }
+
+      _cachedQuotes = result;
       return _cachedQuotes!;
     } catch (e) {
       print('Error loading quotes: $e');

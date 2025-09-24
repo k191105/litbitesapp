@@ -5,6 +5,7 @@ import 'package:quotes_app/services/revenuecat_keys.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/utils/membership_feedback.dart';
 
 class Paywall extends StatefulWidget {
   final String contextKey;
@@ -32,73 +33,72 @@ class _PaywallState extends State<Paywall> {
     Analytics.instance.logEvent('paywall.view', {'context': widget.contextKey});
     Future.microtask(() async {
       await PurchaseService.instance.ensureOfferingsLoaded();
+      if (!PurchaseService.instance.hasOfferingsLoaded) {
+        debugPrint(
+          '[MembershipFlow][offerings] Offerings missing when paywall opened for ${widget.contextKey}',
+        );
+      }
       if (mounted) setState(() {});
     });
   }
 
-  Map<String, List<String>> get _contextualBullets => {
-    'browse_tags': [
-      'Unlock all tags and eras',
-      'Open the full library (~5,000 quotes)',
-      'Follow interests deeper with Tag/Period',
-    ],
-    'browse_author': [
-      'Browse by author A–Z',
-      'Deep author collections',
-      'Full library access (~5,000 quotes)',
-      'Discover new voices',
-    ],
-    'browse_period': [
-      'Browse by Period (Romanticism → Modernism)',
-      'Unlock the premium library',
-      'See era‑specific highlights',
-      'Time‑based discovery made easy',
-    ],
-    'settings_theme': [
-      'All premium themes and fonts',
-      'Share without watermark',
-      'Home/lock‑screen widgets',
-      'Make it feel uniquely yours',
-      'Unlock premium quote library',
-    ],
-    'settings_font': [
-      'Premium fonts unlocked',
-      'Beautiful, readable typography',
-      'Share without watermark',
-      'Make every quote look right',
-    ],
-    'profile_upgrade': [
-      'Full premium library unlocked',
-      'Browse by Author & Period',
-      'Curated Author Collections',
-      'Personalised Learning',
-      'Custom notifications & Smart Schedule',
-    ],
-    'reward_upgrade': [
-      'Keep your unlocked feature forever',
-      'Full library (~5,000) + Search',
-      'All premium customization',
-      'Personalised Learning',
-    ],
-    'learn_trainer': [
-      'Guided sessions tailored to you',
-      'Adaptive difficulty',
-      'Review mistakes faster',
-      'Master quotes with spaced repetition',
-    ],
-    'srs_unlimited': [
-      'Personalised learning',
-      'Master quotes with spaced repetition',
-      'Track your progress',
-      'Build lasting memory',
-    ],
-    'notif_customization': [
-      'Pick times that fit your day',
-      'Filter by authors or tags',
-      'Weekday schedules',
-      'Personalized reminder flow',
-    ],
-  };
+  Map<String, List<String>> get _contextualBullets {
+    final proFeatures = EntitlementsService.proFeatureDisplayNames;
+    return {
+      'browse_tags': [
+        'Unlock all tags and eras',
+        'Open the full library (~5,000 quotes)',
+        'Follow interests deeper with Tag/Period',
+      ],
+      'browse_author': [
+        proFeatures[EntitlementsService.browseAuthor]!,
+        'Deep author collections',
+        'Full library access (~5,000 quotes)',
+        'Discover new voices',
+      ],
+      'browse_period': [
+        proFeatures[EntitlementsService.browsePeriod]!,
+        'Unlock the premium library',
+        'See era‑specific highlights',
+        'Time‑based discovery made easy',
+      ],
+      'settings_theme': [
+        proFeatures[EntitlementsService.premiumThemes]!,
+        'Share without watermark',
+        'Home/lock‑screen widgets',
+        'Make it feel uniquely yours',
+      ],
+      'settings_font': [
+        proFeatures[EntitlementsService.premiumFonts]!,
+        'Beautiful, readable typography',
+        'Share without watermark',
+        'Make every quote look right',
+      ],
+      'profile_upgrade': proFeatures.values.toList(),
+      'reward_upgrade': [
+        'Keep your unlocked feature forever',
+        ...proFeatures.values,
+      ],
+      'learn_trainer': [
+        proFeatures[EntitlementsService.learnTrainer]!,
+        'Adaptive difficulty',
+        'Review mistakes faster',
+        'Master quotes with spaced repetition',
+      ],
+      'srs_unlimited': [
+        proFeatures[EntitlementsService.srsUnlimited]!,
+        'Master quotes with spaced repetition',
+        'Track your progress',
+        'Build lasting memory',
+      ],
+      'notif_customization': [
+        'Pick times that fit your day',
+        'Filter by authors or tags',
+        'Weekday schedules',
+        'Personalized reminder flow',
+      ],
+    };
+  }
 
   List<String> get _bullets =>
       _contextualBullets[widget.contextKey] ??
@@ -258,15 +258,24 @@ class _PaywallState extends State<Paywall> {
   }
 
   Widget _buildAllProFeaturesExpandable() {
+    final proFeatures = EntitlementsService.proFeatureDisplayNames;
     final Map<String, List<String>> groups = {
       'Explore': [
         'Full premium quotes library',
-        'Browse by Author & Period',
+        proFeatures[EntitlementsService.browseAuthor]!,
+        proFeatures[EntitlementsService.browsePeriod]!,
         'Curated Author Collections',
         'Intelligent recommendation algorithm',
       ],
-      'Customize': ['Premium themes & fonts', 'Make it feel uniquely yours'],
-      'Learn': ['Personalised learning', 'Spaced Repetition', 'Progress stats'],
+      'Customize': [
+        proFeatures[EntitlementsService.premiumThemes]!,
+        proFeatures[EntitlementsService.premiumFonts]!,
+        proFeatures[EntitlementsService.premiumShareStyles]!,
+      ],
+      'Learn': [
+        proFeatures[EntitlementsService.srsUnlimited]!,
+        proFeatures[EntitlementsService.learnTrainer]!,
+      ],
       'Notifications': [
         'Custom count & times',
         'Smart Schedule',
@@ -637,20 +646,18 @@ class _PaywallState extends State<Paywall> {
         Navigator.of(
           context,
         ).pop(true); // Return true to indicate successful purchase
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Welcome to Literature Bites Pro!'),
-            backgroundColor: Colors.green,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Welcome!',
+          message: 'Welcome to Literature Bites Pro!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Purchase failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Purchase Failed',
+          message: 'Purchase failed: $e',
         );
       }
     } finally {
@@ -673,26 +680,26 @@ class _PaywallState extends State<Paywall> {
 
       if (mounted) {
         if (isProAfter && !isProBefore) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Purchases restored successfully.'),
-              backgroundColor: Colors.green,
-            ),
+          await MembershipFeedback.showMessage(
+            context,
+            title: 'Restore Complete',
+            message: 'Membership restored. Welcome to Literature Bites Pro!',
           );
           Navigator.of(context).pop(true); // Pop paywall on success
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No new purchases to restore.')),
+          await MembershipFeedback.showMessage(
+            context,
+            title: 'No Purchases Found',
+            message: 'No purchases to restore.',
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Restore failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Restore Failed',
+          message: 'Restore failed: $e',
         );
       }
     }

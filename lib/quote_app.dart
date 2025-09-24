@@ -126,7 +126,11 @@ class QuoteAppState extends State<QuoteApp>
       // Sync notifications with current preferences
       _syncNotifications();
       // Sync entitlements from RevenueCat whenever app resumes
-      PurchaseService.instance.syncEntitlementFromRC();
+      PurchaseService.instance.syncEntitlementFromRC().then((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
     }
   }
 
@@ -235,13 +239,13 @@ class QuoteAppState extends State<QuoteApp>
       final seenQuoteIds = prefs.getStringList('seenQuoteIds') ?? [];
       _seenQuoteIds.addAll(seenQuoteIds);
 
-      // Configure RevenueCat
-      PurchaseService.instance.configure(
-        iosApiKey: rcAppleApiKey,
-        // Android deferred
-      );
-      // Immediately sync entitlements from RevenueCat after configuration
-      await PurchaseService.instance.syncEntitlementFromRC();
+      // RevenueCat already configured in main.dart, just sync in background
+      Future(() async {
+        await PurchaseService.instance.syncEntitlementFromRC();
+        if (mounted) {
+          setState(() {});
+        }
+      });
 
       setState(() {
         _allQuotes = quotes;

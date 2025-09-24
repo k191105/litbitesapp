@@ -22,6 +22,16 @@ class EntitlementsService {
   static const String srsUnlimited = 'srs_unlimited';
   static const String learnTrainer = 'learn_trainer';
 
+  static const Map<String, String> proFeatureDisplayNames = {
+    browseAuthor: 'Browse by Author',
+    browsePeriod: 'Browse by Period',
+    premiumThemes: 'Premium Themes',
+    premiumFonts: 'Premium Fonts',
+    premiumShareStyles: 'Premium Share Styles',
+    srsUnlimited: 'Unlimited Learning',
+    learnTrainer: 'Personalised Learning',
+  };
+
   EntitlementsService._();
 
   Future<Map<String, dynamic>> _loadEntitlements() async {

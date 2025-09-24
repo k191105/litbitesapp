@@ -6,11 +6,30 @@ class Analytics {
   Analytics._();
 
   Future<void> logEvent(String name, [Map<String, dynamic>? props]) async {
-    // In a real app, this would send data to a service like Firebase or Amplitude.
-    // For now, we'll just print to the console for debugging purposes.
-    if (kDebugMode) {
+    // In production, this would send data to a service like Firebase or Amplitude.
+    // For now, we'll only log critical events in release mode and all events in debug.
+    final isProduction = const bool.fromEnvironment('dart.vm.product');
+
+    // Always log critical events, but filter out noisy events in production
+    final isCriticalEvent = _isCriticalEvent(name);
+
+    if (kDebugMode || isProduction && isCriticalEvent) {
+      // In production, you might want to use a proper logging service
       print('[Analytics] Event: $name, Properties: ${props ?? {}}');
     }
+  }
+
+  bool _isCriticalEvent(String eventName) {
+    // Only log these critical events in production to reduce noise
+    const criticalEvents = {
+      'purchase.success',
+      'purchase.error',
+      'purchase.entitlement_changed',
+      'purchase.store_error',
+      'streak.milestone_shown',
+      'learn.srs_cap_reached',
+    };
+    return criticalEvents.contains(eventName);
   }
 
   // Learn Hub Events
