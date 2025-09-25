@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quotes_app/services/analytics.dart';
+import 'package:quotes_app/services/time_provider.dart';
 
-class EntitlementsService {
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
+
+class EntitlementsService extends ChangeNotifier {
   static final EntitlementsService instance = EntitlementsService._();
   Completer<void>? _writeLock;
 
@@ -90,13 +94,15 @@ class EntitlementsService {
     final passes = Map<String, String>.from(
       entitlements[_featurePassesKey] as Map,
     );
-    final now = DateTime.now().toUtc();
+    final now = timeProvider.now().toUtc();
 
     final futures = <Future<void>>[];
+    bool changed = false;
     passes.removeWhere((key, value) {
       final expiry = DateTime.tryParse(value)?.toUtc();
       final isExpired = expiry == null || !expiry.isAfter(now);
       if (isExpired) {
+        changed = true;
         futures.add(
           Analytics.instance.logEvent('entitlement.feature_pass_expired', {
             'feature': key,
@@ -108,8 +114,27 @@ class EntitlementsService {
 
     await Future.wait(futures);
 
+    // Normalize overly long pass durations to a max of 5 days (migration safety)
+    final maxDuration = const Duration(days: 5);
+    passes.updateAll((key, value) {
+      final expiry = DateTime.tryParse(value)?.toUtc();
+      if (expiry == null) {
+        changed = true;
+        return now.add(maxDuration).toIso8601String();
+      }
+      final remaining = expiry.difference(now);
+      if (remaining > maxDuration) {
+        changed = true;
+        return now.add(maxDuration).toIso8601String();
+      }
+      return value;
+    });
+
     entitlements[_featurePassesKey] = passes;
     await _saveEntitlements(entitlements);
+    if (changed) {
+      notifyListeners();
+    }
   }
 
   Future<Map<String, DateTime>> getFeaturePasses() async {
@@ -132,23 +157,10 @@ class EntitlementsService {
       final passes = Map<String, String>.from(
         entitlements[_featurePassesKey] as Map,
       );
-      final now = DateTime.now().toUtc();
+      final now = timeProvider.now().toUtc();
 
-      final currentExpiryStr = passes[featureKey];
-      DateTime newExpiry;
-      if (currentExpiryStr != null) {
-        final currentExpiry = DateTime.parse(currentExpiryStr).toUtc();
-        if (currentExpiry.isAfter(now)) {
-          // Extend existing pass
-          newExpiry = currentExpiry.add(duration);
-        } else {
-          // Grant new pass as old one expired
-          newExpiry = now.add(duration);
-        }
-      } else {
-        // Grant new pass
-        newExpiry = now.add(duration);
-      }
+      // Non-stacking policy: each grant resets to duration from now
+      final newExpiry = now.add(duration);
 
       passes[featureKey] = newExpiry.toIso8601String();
       entitlements[_featurePassesKey] = passes;
@@ -158,6 +170,7 @@ class EntitlementsService {
         'source': source,
         'expiresAt': newExpiry.toIso8601String(),
       });
+      notifyListeners();
     });
   }
 
@@ -178,7 +191,7 @@ class EntitlementsService {
 
     if (expiry == null) return null;
 
-    final remaining = expiry.difference(DateTime.now().toUtc());
+    final remaining = expiry.difference(timeProvider.now().toUtc());
     return remaining.isNegative ? null : remaining;
   }
 
@@ -197,6 +210,7 @@ class EntitlementsService {
       passes.remove(featureKey);
       entitlements[_featurePassesKey] = passes;
       await _saveEntitlements(entitlements);
+      notifyListeners();
     });
   }
 
@@ -206,9 +220,10 @@ class EntitlementsService {
       final entitlements = await _loadEntitlements();
       entitlements[_isProKey] = isPro;
       entitlements[_proSinceKey] = isPro
-          ? (since ?? DateTime.now().toUtc()).toIso8601String()
+          ? (since ?? timeProvider.now().toUtc()).toIso8601String()
           : null;
       await _saveEntitlements(entitlements);
+      notifyListeners();
     });
   }
 
@@ -218,6 +233,7 @@ class EntitlementsService {
       final entitlements = await _loadEntitlements();
       entitlements[_featurePassesKey] = <String, String>{};
       await _saveEntitlements(entitlements);
+      notifyListeners();
     });
   }
 }

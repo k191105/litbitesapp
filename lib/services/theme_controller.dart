@@ -9,6 +9,7 @@ class ThemeController {
 
   static const String _themeIdKey = 'theme_id';
   static const String _fontIdKey = 'font_id';
+  static const String _lastFreeThemeIdKey = 'last_free_theme_id';
 
   late String _themeId;
   late String _fontId;
@@ -77,6 +78,10 @@ class ThemeController {
     _themeId = themeId;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeIdKey, themeId);
+    // Remember last free theme to respect user's preference when passes expire
+    if (_isFreeTheme(themeId)) {
+      await prefs.setString(_lastFreeThemeIdKey, themeId);
+    }
     _notifyListeners();
   }
 
@@ -99,5 +104,16 @@ class ThemeController {
     for (var listener in _listeners) {
       listener();
     }
+  }
+
+  bool _isFreeTheme(String themeId) {
+    return themeId == lightThemeId || themeId == darkThemeId;
+  }
+
+  /// Revert to the user's last chosen free theme (defaults to light).
+  Future<void> revertToLastFreeTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastFree = prefs.getString(_lastFreeThemeIdKey) ?? lightThemeId;
+    await setTheme(lastFree);
   }
 }

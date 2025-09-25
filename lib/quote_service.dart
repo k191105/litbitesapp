@@ -39,7 +39,7 @@ class QuoteService {
               'Skipping element at index $i: expected object, got ${entry.runtimeType}',
             );
           }
-        } catch (e, st) {
+        } catch (e) {
           final id = (entry is Map) ? entry['id'] : null;
           print(
             'Failed to parse quote at index $i${id != null ? " (id: $id)" : ""}: $e',

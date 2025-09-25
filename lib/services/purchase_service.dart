@@ -7,6 +7,9 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/services/revenuecat_keys.dart';
+import 'package:quotes_app/services/time_provider.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 enum PurchasePlan {
   monthly(r'$rc_monthly'),
@@ -44,7 +47,7 @@ class PurchaseService {
             customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
         await EntitlementsService.instance.setPro(
           active,
-          since: active ? DateTime.now() : null,
+          since: active ? timeProvider.now() : null,
         );
         Analytics.instance.logEvent('purchase.entitlement_changed', {
           'active': active,
@@ -75,7 +78,7 @@ class PurchaseService {
   }
 
   Future<CustomerInfo> syncEntitlementFromRC() async {
-    final start = DateTime.now();
+    final start = timeProvider.now();
     _log(
       'refresh',
       'Starting entitlement refresh',
@@ -96,14 +99,14 @@ class PurchaseService {
       final active = info.entitlements.all[rcEntitlementKey]?.isActive ?? false;
       await EntitlementsService.instance.setPro(
         active,
-        since: active ? DateTime.now() : null,
+        since: active ? timeProvider.now() : null,
       );
       Analytics.instance.logEvent('purchase.entitlement_sync', {
         'active': active,
       });
       return info;
     } catch (e) {
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       // Only log errors in debug mode to reduce noise
       if (e.toString().contains('ASDErrorDomain') ||
           e.toString().contains('StoreKit')) {
@@ -157,7 +160,7 @@ class PurchaseService {
   /// Purchase a plan
   Future<bool> purchase(String planId) async {
     await Analytics.instance.logEvent('purchase.start', {'plan': planId});
-    final start = DateTime.now();
+    final start = timeProvider.now();
     _log(
       'purchase',
       'Starting purchasePackage',
@@ -181,10 +184,10 @@ class PurchaseService {
           info.entitlements.all[rcEntitlementKey]?.isActive ?? false;
       await EntitlementsService.instance.setPro(
         isActive,
-        since: isActive ? DateTime.now() : null,
+        since: isActive ? timeProvider.now() : null,
       );
       await Analytics.instance.logEvent('purchase.success', {'plan': planId});
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       final activeEntitlements = _activeEntitlementKeys(info);
       final entitlementsChanged = wasPro != isActive;
       _log(
@@ -314,7 +317,7 @@ class PurchaseService {
   /// Restore purchases
   Future<CustomerInfo> restore() async {
     await Analytics.instance.logEvent('purchase.restore_start');
-    final start = DateTime.now();
+    final start = timeProvider.now();
     _log(
       'restore',
       'Starting restorePurchases',
@@ -327,7 +330,7 @@ class PurchaseService {
           customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
       await EntitlementsService.instance.setPro(
         isActive,
-        since: isActive ? DateTime.now() : null,
+        since: isActive ? timeProvider.now() : null,
       );
       await Analytics.instance.logEvent('purchase.restore_success');
       return customerInfo;

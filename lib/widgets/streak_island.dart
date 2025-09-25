@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 
 class StreakIsland extends StatefulWidget {
@@ -128,7 +127,17 @@ class _StreakIslandState extends State<StreakIsland>
     final isCompleted = day['isCompleted'] as bool;
     final isToday = day['isToday'] as bool;
     final dayName = day['dayName'] as String; // Changed from 'day' to 'dayName'
+    final isRewardDay = day['isRewardDay'] as bool? ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final rewardBorder = isRewardDay
+        ? Border.all(color: Colors.purple.shade300, width: 2)
+        : Border.all(
+            color: isToday
+                ? (isDark ? Colors.orange.shade300 : Colors.orange.shade700)
+                : Colors.transparent,
+            width: isToday ? 2 : 0,
+          );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -156,16 +165,11 @@ class _StreakIslandState extends State<StreakIsland>
             color: isCompleted
                 ? Colors.orange.shade200
                 : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
-            border: Border.all(
-              color: isToday
-                  ? (isDark ? Colors.orange.shade300 : Colors.orange.shade700)
-                  : Colors.transparent,
-              width: isToday ? 2 : 0,
-            ),
+            border: rewardBorder,
           ),
           child: isCompleted
               ? Center(
-                  child: Container(
+                  child: SizedBox(
                     width: 36,
                     height: 36,
                     child: Lottie.asset(
@@ -181,6 +185,7 @@ class _StreakIslandState extends State<StreakIsland>
                 )
               : Container(),
         ),
+        const SizedBox(height: 20),
       ],
     );
   }

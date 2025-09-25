@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class StreakService {
   static final StreakService instance = StreakService._();
@@ -17,7 +20,7 @@ class StreakService {
       'weekly_view'; // Stores list of local date strings "YYYY-MM-DD"
 
   String getTodayLocal() {
-    final now = DateTime.now();
+    final now = timeProvider.now();
     return DateFormat('yyyy-MM-dd').format(now);
   }
 
@@ -75,7 +78,7 @@ class StreakService {
 
     final yesterday = DateFormat(
       'yyyy-MM-dd',
-    ).format(DateTime.now().subtract(const Duration(days: 1)));
+    ).format(timeProvider.now().subtract(const Duration(days: 1)));
     int previousStreak = streakCount;
 
     if (lastEngagementDate == yesterday) {
@@ -85,6 +88,7 @@ class StreakService {
       // Not consecutive, reset streak.
       streakCount = 1;
       weeklyView.clear();
+      milestonesShown.clear();
     }
 
     await Analytics.instance.logEvent('streak.increment', {
@@ -120,7 +124,7 @@ class StreakService {
 
       await EntitlementsService.instance.grantFeaturePass(
         featureToAward,
-        const Duration(days: 7),
+        const Duration(days: 5),
         source: 'streak_$newMilestone',
       );
     }
@@ -154,46 +158,35 @@ class StreakService {
 
   Future<List<Map<String, dynamic>>> getWeeklyView() async {
     final data = await loadData();
-    final List<String> engagementDates = data[_weeklyViewKey];
-    if (engagementDates.isEmpty) return [];
+    final int streakCount = data[_streakCountKey];
+    if (streakCount == 0) return [];
 
-    final today = getTodayLocal();
+    final today = timeProvider.now();
     final dayFormatter = DateFormat.E();
-    final dateFormatter = DateFormat('yyyy-MM-dd');
 
-    // Determine the start date of the current streak segment to display.
-    // This will be the last 7 days of the streak.
-    final List<String> displayDates = engagementDates.length > 7
-        ? engagementDates.sublist(engagementDates.length - 7)
-        : engagementDates;
+    final daysInStreakWeek = (streakCount - 1) % 7;
+    final startOfStreakWeekDate = today.subtract(
+      Duration(days: daysInStreakWeek),
+    );
 
-    final List<Map<String, dynamic>> weeklyViewData = [];
+    final daysToShow = <Map<String, dynamic>>[];
 
-    // If the streak is less than 7 days, fill the rest with empty days
-    int emptySlots = 7 - displayDates.length;
+    for (int i = 0; i < 7; i++) {
+      final date = startOfStreakWeekDate.add(Duration(days: i));
+      final isCompleted = i <= daysInStreakWeek;
 
-    for (var dateString in displayDates) {
-      final date = dateFormatter.parse(dateString);
-      weeklyViewData.add({
+      // Calculate the streak count for this specific day in the view
+      final streakOnDay = streakCount - (daysInStreakWeek - i);
+      final isRewardDay = streakOnDay > 0 && streakOnDay % 3 == 0;
+
+      daysToShow.add({
         'dayName': dayFormatter.format(date),
-        'isToday': dateString == today,
-        'isCompleted': true, // All dates in the list are completed days
+        'isToday': i == daysInStreakWeek,
+        'isCompleted': isCompleted,
+        'isRewardDay': isRewardDay,
       });
     }
-
-    // Add empty slots for the rest of the week
-    for (int i = 0; i < emptySlots; i++) {
-      final nextDay = dateFormatter
-          .parse(displayDates.last)
-          .add(Duration(days: i + 1));
-      weeklyViewData.add({
-        'dayName': dayFormatter.format(nextDay),
-        'isToday': dateFormatter.format(nextDay) == today,
-        'isCompleted': false,
-      });
-    }
-
-    return weeklyViewData;
+    return daysToShow;
   }
 
   // dev panel helpers
@@ -210,7 +203,7 @@ class StreakService {
     await _saveData(
       lastEngagementDate: DateFormat(
         'yyyy-MM-dd',
-      ).format(DateTime.now().subtract(Duration(days: 1))),
+      ).format(timeProvider.now().subtract(Duration(days: 1))),
       streakCount: milestone - 1,
     );
   }

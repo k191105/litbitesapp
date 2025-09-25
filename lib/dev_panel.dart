@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/services/streak_service.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class DevPanelPage extends StatefulWidget {
   const DevPanelPage({super.key});
@@ -148,7 +151,7 @@ class DevPanelPageState extends State<DevPanelPage> {
 
   Widget _buildPassControl(String featureKey) {
     final expiry = _passes[featureKey];
-    final isActive = expiry != null && expiry.isAfter(DateTime.now());
+    final isActive = expiry != null && expiry.isAfter(timeProvider.now());
 
     return ListTile(
       title: Text(featureKey),

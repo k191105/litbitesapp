@@ -2,17 +2,24 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart'; // For addPostFrameCallback
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:quotes_app/quote.dart';
 import 'package:quotes_app/models/notification_prefs.dart';
 import 'package:quotes_app/models/period_catalog.dart';
 import 'package:quotes_app/services/analytics.dart';
-import 'streak_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class NotificationService {
+  /// Get current time from context for widget use
+  static DateTime nowFromContext(BuildContext context) {
+    return context.now;
+  }
+
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -20,8 +27,13 @@ class NotificationService {
 
   // ID namespace for our notifications to avoid conflicts
   static const int _baseNotificationId = 1000;
-  static const int _streakNotificationId = 999;
   static const String _prefsKey = 'notif_prefs_v1';
+  static const String _recentKey = 'recent_quotes_v1';
+
+  /// Initialize timezones - must be called before any scheduling
+  static void initTimezones() {
+    tz.initializeTimeZones();
+  }
 
   static Future<void> init() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -146,7 +158,7 @@ class NotificationService {
     }
 
     // Schedule notifications for the next 7 days
-    int notificationCount = 0;
+    int totalScheduled = 0;
     for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
       final targetDate = now.add(Duration(days: dayOffset));
       final weekday = targetDate.weekday; // 1=Monday, 7=Sunday
@@ -155,7 +167,11 @@ class NotificationService {
         continue; // Skip this day
       }
 
-      for (final time in prefs.times) {
+      // Enforce per-day cap
+      int dailyScheduled = 0;
+      final sortedTimes = _sortTimes(prefs.times);
+
+      for (final time in sortedTimes) {
         final scheduledTime = _createScheduledTime(targetDate, time);
 
         // Skip if the time has already passed today
@@ -163,7 +179,7 @@ class NotificationService {
           continue;
         }
 
-        final quote = pickQuoteForSlot(
+        final quote = await pickQuoteForSlot(
           scheduledTime,
           prefs,
           feed: feed ?? [],
@@ -171,7 +187,7 @@ class NotificationService {
         );
 
         if (quote != null) {
-          final notificationId = _baseNotificationId + notificationCount;
+          final notificationId = _baseNotificationId + totalScheduled;
           await _scheduleNotification(
             notificationId,
             _getTitleForTime(time),
@@ -180,25 +196,23 @@ class NotificationService {
             scheduledTime,
           );
 
-          notificationCount++;
+          totalScheduled++;
+          dailyScheduled++;
 
-          // Respect daily cap
-          if (notificationCount >= prefs.dailyCap * 7) {
+          // Respect daily cap - break if we've reached the limit for this day
+          if (dailyScheduled >= prefs.dailyCap) {
             break;
           }
         }
       }
     }
 
-    debugPrint('🎯 Scheduled $notificationCount notifications over 7 days');
+    debugPrint('🎯 Scheduled $totalScheduled notifications over 7 days');
 
     // Log analytics
     Analytics.instance.logEvent(Analytics.notifScheduledTotal, {
-      'count_7d': notificationCount,
+      'count_7d': totalScheduled,
     });
-
-    // Schedule streak reminder if needed
-    await _scheduleStreakReminderIfNeeded();
 
     // Save the scheduling time for future reference
     final sp = await SharedPreferences.getInstance();
@@ -206,12 +220,12 @@ class NotificationService {
   }
 
   /// Pick a quote for a specific notification slot
-  static Quote? pickQuoteForSlot(
+  static Future<Quote?> pickQuoteForSlot(
     DateTime when,
     NotificationPrefs prefs, {
     required List<Quote> feed,
     required List<Quote> favoriteQuotes,
-  }) {
+  }) async {
     // Get available quotes based on filters
     List<Quote> candidates = _filterQuotesByPrefs(feed, prefs);
 
@@ -231,7 +245,7 @@ class NotificationService {
     }
 
     // Avoid recent quotes
-    final recentIds = _getRecentQuoteIds();
+    final recentIds = await _getRecentQuoteIds();
     final nonRecentCandidates = candidates
         .where((q) => !recentIds.contains(q.id))
         .toList();
@@ -239,6 +253,10 @@ class NotificationService {
     final selectedCandidates = nonRecentCandidates.isNotEmpty
         ? nonRecentCandidates
         : candidates;
+
+    if (selectedCandidates.isEmpty) {
+      return null;
+    }
 
     // Use deterministic selection based on time to avoid duplicate quotes at same time
     final seed =
@@ -248,7 +266,7 @@ class NotificationService {
         selectedCandidates[random.nextInt(selectedCandidates.length)];
 
     // Remember this quote
-    _addToRecentQuoteIds(selectedQuote.id, prefs.lookbackDays);
+    await _addToRecentQuoteIds(selectedQuote.id, prefs.lookbackDays);
 
     return selectedQuote;
   }
@@ -317,16 +335,81 @@ class NotificationService {
     );
   }
 
-  /// Get recent quote IDs to avoid repetition
-  static Set<String> _getRecentQuoteIds() {
-    // This would ideally be async, but for simplicity we'll use a synchronous approach
-    // In production, you might want to cache this in memory
-    return {}; // Simplified for now
+  /// Sort times by total minutes to ensure correct ordering
+  static List<TimeOfDay> _sortTimes(List<TimeOfDay> times) {
+    return List<TimeOfDay>.from(times)..sort(
+      (a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute),
+    );
   }
 
-  /// Add quote ID to recent list
-  static void _addToRecentQuoteIds(String quoteId, int lookbackDays) {
-    // Simplified for now - in production, maintain a ring buffer in SharedPreferences
+  /// Get recent quote IDs to avoid repetition
+  static Future<Set<String>> _getRecentQuoteIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final recentJson = prefs.getString(_recentKey);
+
+      if (recentJson == null) {
+        return {};
+      }
+
+      final List<dynamic> recentList = json.decode(recentJson);
+      final recentQuotes = recentList.cast<Map<String, dynamic>>();
+
+      // Filter out old entries
+      final now = timeProvider.now().millisecondsSinceEpoch;
+      final recentIds = <String>{};
+
+      for (final entry in recentQuotes) {
+        final timestamp = entry['timestamp'] as int;
+        final quoteId = entry['quoteId'] as String;
+
+        // Keep entries within lookback period
+        if (now - timestamp < const Duration(days: 14).inMilliseconds) {
+          recentIds.add(quoteId);
+        }
+      }
+
+      return recentIds;
+    } catch (e) {
+      debugPrint('Error loading recent quotes: $e');
+      return {};
+    }
+  }
+
+  /// Add quote ID to recent list with timestamp
+  static Future<void> _addToRecentQuoteIds(
+    String quoteId,
+    int lookbackDays,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final recentJson = prefs.getString(_recentKey);
+      final now = timeProvider.now().millisecondsSinceEpoch;
+
+      List<Map<String, dynamic>> recentList = [];
+      if (recentJson != null) {
+        recentList = (json.decode(recentJson) as List)
+            .cast<Map<String, dynamic>>();
+      }
+
+      // Add new entry
+      recentList.add({'quoteId': quoteId, 'timestamp': now});
+
+      // Keep only recent entries
+      final cutoff = now - Duration(days: lookbackDays).inMilliseconds;
+      recentList = recentList
+          .where((entry) => entry['timestamp'] > cutoff)
+          .toList();
+
+      // Limit to reasonable size to prevent storage bloat
+      if (recentList.length > 100) {
+        recentList = recentList.sublist(recentList.length - 100);
+      }
+
+      await prefs.setString(_recentKey, json.encode(recentList));
+    } catch (e) {
+      debugPrint('Error saving recent quote: $e');
+    }
   }
 
   /// Legacy method - now delegates to prefs-based system
@@ -340,39 +423,14 @@ class NotificationService {
     await syncWithPrefs(prefs, now, feed: feed, favoriteQuotes: favoriteQuotes);
   }
 
-  static Future<void> _scheduleStreakReminderIfNeeded() async {
-    final streakService = StreakService.instance;
-    final data = await streakService.loadData(); // A method to expose the data
-    final today = streakService
-        .getTodayLocal(); // A method to get today's date string
-    final lastEngagementDate = data['last_engagement_local_date'];
-
-    if (lastEngagementDate != today) {
-      final reminderTime = _nextInstanceOfTime(DateTime.now(), 20); // 8 PM
-
-      debugPrint('⏰ Scheduling streak reminder for: $reminderTime');
-
-      await _scheduleNotification(
-        _streakNotificationId, // Use a special ID for streak reminders
-        'Don\'t Break Your Streak!',
-        'Keep your reading streak alive with today\'s quote',
-        'streak_reminder',
-        reminderTime,
-      );
+  /// Clear all recent quotes data (for testing/debugging)
+  static Future<void> clearRecentQuotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_recentKey);
+    } catch (e) {
+      debugPrint('Error clearing recent quotes: $e');
     }
-  }
-
-  static tz.TZDateTime _nextInstanceOfTime(DateTime now, int hour) {
-    final tz.TZDateTime scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-    );
-    return scheduledDate.isBefore(now)
-        ? scheduledDate.add(const Duration(days: 1))
-        : scheduledDate;
   }
 
   static Future<void> _scheduleNotification(

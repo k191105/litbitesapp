@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class SrsItem {
   final String quoteId;
@@ -137,14 +140,14 @@ class SRSService {
 
   Future<void> addQuote(String quoteId) async {
     await _load();
-    _srsItems[quoteId] = SrsItem(quoteId: quoteId, due: DateTime.now());
+    _srsItems[quoteId] = SrsItem(quoteId: quoteId, due: timeProvider.now());
     await _save();
   }
 
   Future<void> addMany(Set<String> quoteIds) async {
     await _load();
     for (final quoteId in quoteIds) {
-      _srsItems[quoteId] = SrsItem(quoteId: quoteId, due: DateTime.now());
+      _srsItems[quoteId] = SrsItem(quoteId: quoteId, due: timeProvider.now());
     }
     await _save();
   }

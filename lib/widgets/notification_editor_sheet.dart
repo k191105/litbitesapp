@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:quotes_app/models/notification_prefs.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/notification_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 import 'package:quotes_app/quote.dart';
 import 'package:quotes_app/browse_by_author.dart';
 import 'package:quotes_app/browse.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class NotificationEditorSheet extends StatefulWidget {
   final NotificationPrefs initialPrefs;
@@ -476,7 +479,7 @@ class _NotificationEditorSheetState extends State<NotificationEditorSheet> {
       // Sync notifications with new preferences
       await NotificationService.syncWithPrefs(
         _prefs,
-        DateTime.now(),
+        timeProvider.now(),
         feed: widget.allQuotes,
         favoriteQuotes: widget.favoriteQuotes,
       );

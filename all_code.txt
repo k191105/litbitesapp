@@ -273,8 +273,6 @@ class BrowsePageState extends State<BrowsePage> {
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:flutter/foundation.dart';
-import 'dev_panel.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -426,7 +424,7 @@ class QuoteService {
               'Skipping element at index $i: expected object, got ${entry.runtimeType}',
             );
           }
-        } catch (e, st) {
+        } catch (e) {
           final id = (entry is Map) ? entry['id'] : null;
           print(
             'Failed to parse quote at index $i${id != null ? " (id: $id)" : ""}: $e',
@@ -1545,7 +1543,7 @@ class Quote {
       result += ' (';
       result += authorBirth.toString();
       if (authorDeath != null) {
-        result += '–${authorDeath}';
+        result += '–$authorDeath';
       } else {
         result += '–';
       }
@@ -1575,7 +1573,6 @@ class Quote {
 ===== post_onboarding_sequence.dart =====
 
 import 'package:flutter/material.dart';
-import 'package:quotes_app/widgets/paywall.dart';
 import 'package:quotes_app/utils/feature_gate.dart';
 import 'dart:async';
 
@@ -2340,8 +2337,8 @@ class _QuizPageState extends State<QuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.onBackground,
-                foregroundColor: Theme.of(context).colorScheme.background,
+                backgroundColor: Theme.of(context).colorScheme.onSurface,
+                foregroundColor: Theme.of(context).colorScheme.surface,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _nextQuestion,
@@ -2604,13 +2601,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:quotes_app/recommendation_service.dart';
-import 'package:flutter/rendering.dart';
 import 'onboarding_page.dart';
 import 'post_onboarding_sequence.dart';
 import 'info_card.dart';
 import 'services/notification_service.dart';
 import 'services/streak_service.dart';
-import 'widgets/streak_island.dart';
 import 'widgets/milestone_celebration.dart';
 import 'widgets/quote_card.dart';
 import 'widgets/details_card.dart';
@@ -2620,12 +2615,10 @@ import 'widgets/tag_chip.dart';
 import 'widgets/author_chip.dart';
 import 'utils/share_quote.dart';
 import 'models/period_catalog.dart';
-import 'utils/system_ui.dart';
 import 'widgets/active_filters_bar.dart';
 import 'widgets/settings_sheet.dart';
+import 'widgets/streak_island.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
-import 'package:quotes_app/widgets/reward_island.dart';
-import 'package:quotes_app/widgets/tip_island.dart';
 import 'quote.dart';
 import 'quote_service.dart';
 import 'browse_hub.dart';
@@ -2636,7 +2629,6 @@ import 'profile_rewards_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'srs_service.dart';
 import 'package:quotes_app/services/purchase_service.dart';
-import 'package:quotes_app/services/revenuecat_keys.dart';
 
 class _InfoCardModel {
   final String id;
@@ -2662,8 +2654,6 @@ class QuoteAppState extends State<QuoteApp>
 
   Map<String, dynamic>? _streakIslandData;
   String? _celebrationType; // 'confetti' or 'fireworks'
-  String? _awardedFeatureKey;
-  String? _activeTip;
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
@@ -2793,12 +2783,6 @@ class QuoteAppState extends State<QuoteApp>
         setState(() {
           _celebrationType = null;
         });
-        // After celebration, if there are awards, show the award sheet.
-        if (awardedFeatureKeys.isNotEmpty) {
-          setState(() {
-            _awardedFeatureKey = awardedFeatureKeys.first;
-          });
-        }
       }
     });
   }
@@ -3331,7 +3315,6 @@ class QuoteAppState extends State<QuoteApp>
   @override
   Widget build(BuildContext context) {
     // Sync the system status bar with our app bar background to avoid the lavender tint on iOS
-    setSystemUIOverlayStyle(Theme.of(context).brightness == Brightness.dark);
 
     if (_isLoading) {
       return Scaffold(
@@ -3409,7 +3392,6 @@ class QuoteAppState extends State<QuoteApp>
                               if (!_seenQuoteIds.contains(quoteId)) {
                                 _seenQuoteIds.add(quoteId);
                                 _updatePageViewItems();
-                                _checkForTips();
                               }
                             });
                           }
@@ -3565,44 +3547,17 @@ class QuoteAppState extends State<QuoteApp>
               left: 0,
               right: 0,
               child: SafeArea(
-                bottom: false, // Don't apply SafeArea to bottom
-                child: Column(
-                  children: [
-                    if (_streakIslandData != null)
-                      StreakIsland(
-                        streakMessage: _streakIslandData!['message'] as String,
-                        weeklyView:
-                            _streakIslandData!['weeklyView']
-                                as List<Map<String, dynamic>>,
-                        onTap: () {
-                          // Optional: Show streak history or details
-                        },
-                        onDismiss: () {
-                          setState(() {
-                            _streakIslandData = null;
-                          });
-                        },
-                      ),
-                    if (_awardedFeatureKey != null)
-                      RewardIsland(
-                        featureKey: _awardedFeatureKey!,
-                        onDismiss: () {
-                          setState(() {
-                            _awardedFeatureKey = null;
-                          });
-                        },
-                      ),
-                    if (_activeTip != null)
-                      TipIsland(
-                        message: _getTipMessage(_activeTip!),
-                        icon: _getTipIcon(_activeTip!),
-                        onDismiss: () {
-                          setState(() {
-                            _activeTip = null;
-                          });
-                        },
-                      ),
-                  ],
+                bottom: false,
+                child: StreakIsland(
+                  streakMessage: _streakIslandData!['message'] as String,
+                  weeklyView:
+                      _streakIslandData!['weeklyView']
+                          as List<Map<String, dynamic>>,
+                  onDismiss: () {
+                    setState(() {
+                      _streakIslandData = null;
+                    });
+                  },
                 ),
               ),
             ),
@@ -3685,47 +3640,6 @@ class QuoteAppState extends State<QuoteApp>
   Future<void> _saveInfoCardIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('infoCardIds', _infoCardIds.toList());
-  }
-
-  void _checkForTips() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shownTips = prefs.getStringList('shownTips') ?? [];
-
-    if (_favoriteQuotes.isNotEmpty) {
-      return;
-    }
-
-    final milestones = [5, 15, 30];
-    for (var milestone in milestones) {
-      if (_seenQuoteIds.length == milestone &&
-          !shownTips.contains('double_tap_$milestone')) {
-        setState(() {
-          _activeTip = 'double_tap';
-        });
-
-        shownTips.add('double_tap_$milestone');
-        await prefs.setStringList('shownTips', shownTips);
-        break;
-      }
-    }
-  }
-
-  String _getTipMessage(String tipKey) {
-    switch (tipKey) {
-      case 'double_tap':
-        return 'Double-tap any quote to add it to your favorites!';
-      default:
-        return 'Tip: Explore the app to discover more features!';
-    }
-  }
-
-  IconData _getTipIcon(String tipKey) {
-    switch (tipKey) {
-      case 'double_tap':
-        return Icons.favorite_border;
-      default:
-        return Icons.lightbulb_outline;
-    }
   }
 
   Widget _buildInfoCard() {
@@ -4686,6 +4600,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/services/purchase_service.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
 import 'package:quotes_app/services/revenuecat_keys.dart';
+import 'package:quotes_app/utils/membership_feedback.dart';
 import 'package:quotes_app/browse_hub.dart';
 import 'package:quotes_app/learn_hub.dart';
 import 'package:quotes_app/widgets/settings_sheet.dart';
@@ -4705,8 +4620,12 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   int _favoriteQuotesCount = 0;
   List<Quote> _allQuotes = [];
   List<Quote> _favoriteQuotes = [];
-  Map<String, int> _viewCounts = {};
-  Map<String, int> _likeCounts = {};
+  final Map<String, int> _viewCounts = {};
+  final Map<String, int> _likeCounts = {};
+  bool _isRestoring = false;
+  bool _isRefreshing = false;
+
+  bool get _isMembershipBusy => _isRestoring || _isRefreshing;
 
   @override
   void initState() {
@@ -4748,40 +4667,44 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
         elevation: 0,
         iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
-      body: FutureBuilder<RewardsSnapshot>(
-        future: _rewardsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData) {
-            return const Center(child: Text('No data available.'));
-          }
+      body: MembershipFeedback.loadingOverlay(
+        context,
+        isLoading: _isMembershipBusy,
+        child: FutureBuilder<RewardsSnapshot>(
+          future: _rewardsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else if (!snapshot.hasData) {
+              return const Center(child: Text('No data available.'));
+            }
 
-          final rewards = snapshot.data!;
-          return RefreshIndicator(
-            onRefresh: () async => _loadData(),
-            child: ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                _buildHeader(rewards.tier),
-                const SizedBox(height: 24),
-                _buildActivePasses(
-                  rewards.activePasses,
-                  isPro: rewards.tier == "Pro",
-                ),
-                const SizedBox(height: 24),
-                if (rewards.nextPass != null)
-                  _buildNextReward(rewards.nextPass!),
-                const SizedBox(height: 24),
-                _buildUsageStats(rewards),
-                const SizedBox(height: 24),
-                _buildFooter(),
-              ],
-            ),
-          );
-        },
+            final rewards = snapshot.data!;
+            return RefreshIndicator(
+              onRefresh: () async => _loadData(),
+              child: ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  _buildHeader(rewards.tier),
+                  const SizedBox(height: 24),
+                  _buildActivePasses(
+                    rewards.activePasses,
+                    isPro: rewards.tier == "Pro",
+                  ),
+                  const SizedBox(height: 24),
+                  if (rewards.nextPass != null)
+                    _buildNextReward(rewards.nextPass!),
+                  const SizedBox(height: 24),
+                  _buildUsageStats(rewards),
+                  const SizedBox(height: 24),
+                  _buildFooter(),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -5182,12 +5105,16 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   }
 
   Widget _buildFooter() {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextButton(
-          onPressed: _handleRestore,
-          child: const Text('Restore Purchases'),
+        FilledButton(
+          onPressed: _isRestoring ? null : _handleRestore,
+          child: _isRestoring
+              ? _buildButtonSpinner(theme)
+              : const Text('Restore Purchases'),
         ),
         TextButton(
           onPressed: () async {
@@ -5198,53 +5125,78 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
           },
           child: const Text('Manage Subscription'),
         ),
-        TextButton(
-          onPressed: _handleRefresh,
-          child: const Text('Refresh Membership Status'),
+        FilledButton(
+          onPressed: _isRefreshing ? null : _handleRefresh,
+          child: _isRefreshing
+              ? _buildButtonSpinner(theme)
+              : const Text('Refresh Membership Status'),
         ),
       ],
     );
   }
 
   Future<void> _handleRestore() async {
+    if (_isRestoring) return;
+    setState(() {
+      _isRestoring = true;
+    });
     Analytics.instance.logEvent('profile.restore');
+    final start = DateTime.now();
     final isProBefore = await EntitlementsService.instance.isPro();
+    debugPrint(
+      '[MembershipFlow][restore] Restore started at ${start.toIso8601String()}',
+    );
 
     try {
       final customerInfo = await PurchaseService.instance.restore();
       final isProAfter =
           customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
+      if (!mounted) return;
 
-      if (mounted) {
-        if (isProAfter && !isProBefore) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Purchases restored successfully.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No new purchases to restore.')),
-          );
-        }
-        _loadData();
-      }
+      final restored = isProAfter && !isProBefore;
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][restore] Completed in ${durationMs}ms | restored=$restored | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
+      );
+      await MembershipFeedback.showMessage(
+        context,
+        title: restored ? 'Restore Complete' : 'No Purchases Found',
+        message: restored
+            ? 'Membership restored. Welcome to Literature Bites Pro!'
+            : 'No purchases to restore.',
+      );
+      _loadData();
     } catch (e) {
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][restore] Failed in ${durationMs}ms | error=$e',
+      );
+      if (!mounted) return;
+      await MembershipFeedback.showMessage(
+        context,
+        title: 'Restore Failed',
+        message: 'Restore failed: $e',
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Restore failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isRestoring = false;
+        });
       }
     }
   }
 
   Future<void> _handleRefresh() async {
+    if (_isRefreshing) return;
+    setState(() {
+      _isRefreshing = true;
+    });
     Analytics.instance.logEvent('profile.refresh_membership');
+    final start = DateTime.now();
     final isProBefore = await EntitlementsService.instance.isPro();
+    debugPrint(
+      '[MembershipFlow][refresh] Refresh started at ${start.toIso8601String()}',
+    );
 
     try {
       final customerInfo = await PurchaseService.instance
@@ -5252,31 +5204,50 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       final isProAfter =
           customerInfo.entitlements.all[rcEntitlementKey]?.isActive ?? false;
 
-      if (mounted) {
-        if (isProAfter && !isProBefore) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Membership status refreshed successfully.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Membership status is up to date.')),
-          );
-        }
-        _loadData();
-      }
+      if (!mounted) return;
+
+      final gainedPro = isProAfter && !isProBefore;
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][refresh] Completed in ${durationMs}ms | gainedPro=$gainedPro | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
+      );
+      await MembershipFeedback.showMessage(
+        context,
+        title: gainedPro ? 'Membership Updated' : 'Already Up To Date',
+        message: gainedPro
+            ? 'Membership restored. Welcome to Literature Bites Pro!'
+            : 'Membership status is up to date.',
+      );
+      _loadData();
     } catch (e) {
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      debugPrint(
+        '[MembershipFlow][refresh] Failed in ${durationMs}ms | error=$e',
+      );
+      if (!mounted) return;
+      await MembershipFeedback.showMessage(
+        context,
+        title: 'Refresh Failed',
+        message: 'Could not refresh membership. $e',
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Refresh failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isRefreshing = false;
+        });
       }
     }
+  }
+
+  Widget _buildButtonSpinner(ThemeData theme) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.onPrimary),
+      ),
+    );
   }
 
   Widget _buildStatCard(
@@ -6472,7 +6443,6 @@ import 'package:quotes_app/widgets/settings_sheet.dart';
 import 'package:quotes_app/widgets/tag_chip.dart';
 import 'package:quotes_app/widgets/pro_badge.dart';
 import 'package:quotes_app/utils/gate_overlay.dart';
-import 'dart:ui';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 
 class BrowseHubPage extends StatefulWidget {
@@ -8616,10 +8586,12 @@ Future<bool?> openPaywall({
 ===== utils/share_quote.dart =====
 
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../quote.dart';
 
 Future<void> shareQuoteAsImage(
@@ -8764,24 +8736,7 @@ class GateOverlay extends StatelessWidget {
 }
 
 
-===== utils/system_ui.dart =====
-
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-void setSystemUIOverlayStyle(bool isDarkMode) {
-  SystemChrome.setSystemUIOverlayStyle(
-    SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-    ),
-  );
-}
-
-
 ===== utils/font_size_helpers.dart =====
-
-import 'package:flutter/material.dart';
 
 double getFontSize(String text) {
   if (text.length > 300) return 20.0;
@@ -8820,7 +8775,8 @@ class MembershipFeedback {
             content: Text(message, style: theme.textTheme.bodyMedium),
             actions: [
               CupertinoDialogAction(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 isDefaultAction: true,
                 child: Text('OK', style: TextStyle(color: actionColor)),
               ),
@@ -8831,7 +8787,8 @@ class MembershipFeedback {
             content: Text(message, style: theme.textTheme.bodyMedium),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).pop(),
                 child: Text('OK', style: TextStyle(color: actionColor)),
               ),
             ],
@@ -8852,7 +8809,8 @@ class MembershipFeedback {
     if (!isLoading) return child;
     final theme = Theme.of(context);
     final lbTheme = theme.extension<LBTheme>();
-    final overlayColor = lbTheme?.controlSurface.withOpacity(0.86) ??
+    final overlayColor =
+        lbTheme?.controlSurface.withOpacity(0.86) ??
         theme.colorScheme.surface.withOpacity(0.86);
 
     return Stack(
@@ -9855,6 +9813,7 @@ class EntitlementsService {
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -9875,6 +9834,8 @@ class PurchaseService {
   PurchaseService._();
 
   Offerings? _offerings;
+
+  static const String _logPrefix = '[MembershipFlow]';
 
   /// No longer a mock
   bool get isMock => false;
@@ -9901,6 +9862,16 @@ class PurchaseService {
         Analytics.instance.logEvent('purchase.entitlement_changed', {
           'active': active,
         });
+        _log(
+          'listener',
+          'Customer info listener triggered',
+          data: {
+            'activeEntitlements': _activeEntitlementKeys(
+              customerInfo,
+            ).join(','),
+            'proEntitlementActive': active,
+          },
+        );
       });
 
       await syncEntitlementFromRC();
@@ -9908,10 +9879,25 @@ class PurchaseService {
       Analytics.instance.logEvent('purchase.configure_error', {
         'error': e.toString(),
       });
+      _log(
+        'configure',
+        'Failed to configure RevenueCat',
+        data: {'error': e.toString()},
+      );
     }
   }
 
   Future<CustomerInfo> syncEntitlementFromRC() async {
+    final start = DateTime.now();
+    _log(
+      'refresh',
+      'Starting entitlement refresh',
+      data: {
+        'call': 'syncPurchases + getCustomerInfo',
+        'startedAt': start.toIso8601String(),
+      },
+    );
+    final wasPro = await EntitlementsService.instance.isPro();
     try {
       // Ensure purchases done outside the app (offer codes, subscription changes) are synced on iOS
       if (Platform.isIOS) {
@@ -9921,23 +9907,16 @@ class PurchaseService {
       await Purchases.invalidateCustomerInfoCache();
       final info = await Purchases.getCustomerInfo();
       final active = info.entitlements.all[rcEntitlementKey]?.isActive ?? false;
-
-      // Only update and log if status changed to avoid over-logging
-      final currentProStatus = await EntitlementsService.instance.isPro();
-      if (currentProStatus != active) {
-        await EntitlementsService.instance.setPro(
-          active,
-          since: active ? DateTime.now() : null,
-        );
-        Analytics.instance.logEvent('purchase.entitlement_changed', {
-          'active': active,
-          'from': currentProStatus,
-          'to': active,
-        });
-      }
-
+      await EntitlementsService.instance.setPro(
+        active,
+        since: active ? DateTime.now() : null,
+      );
+      Analytics.instance.logEvent('purchase.entitlement_sync', {
+        'active': active,
+      });
       return info;
     } catch (e) {
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
       // Only log errors in debug mode to reduce noise
       if (e.toString().contains('ASDErrorDomain') ||
           e.toString().contains('StoreKit')) {
@@ -9946,11 +9925,21 @@ class PurchaseService {
           'error': e.toString(),
           'type': 'app_store_error',
         });
+        _log(
+          'refresh',
+          'StoreKit-specific error during refresh',
+          data: {'durationMs': durationMs, 'error': e.toString()},
+        );
         return await Purchases.getCustomerInfo(); // Return cached data
       } else {
         Analytics.instance.logEvent('purchase.entitlement_sync_error', {
           'error': e.toString(),
         });
+        _log(
+          'refresh',
+          'Entitlement refresh failed',
+          data: {'durationMs': durationMs, 'error': e.toString()},
+        );
         rethrow;
       }
     }
@@ -9981,10 +9970,22 @@ class PurchaseService {
   /// Purchase a plan
   Future<bool> purchase(String planId) async {
     await Analytics.instance.logEvent('purchase.start', {'plan': planId});
+    final start = DateTime.now();
+    _log(
+      'purchase',
+      'Starting purchasePackage',
+      data: {
+        'call': 'purchasePackage',
+        'planId': planId,
+        'startedAt': start.toIso8601String(),
+      },
+    );
+    final wasPro = await EntitlementsService.instance.isPro();
 
     try {
       final packageToPurchase = _offerings?.current?.getPackage(planId);
       if (packageToPurchase == null) {
+        _log('purchase', 'Package missing for plan', data: {'planId': planId});
         throw Exception('Could not find package for plan $planId');
       }
       final purchaseResult = await Purchases.purchasePackage(packageToPurchase);
@@ -9996,22 +9997,75 @@ class PurchaseService {
         since: isActive ? DateTime.now() : null,
       );
       await Analytics.instance.logEvent('purchase.success', {'plan': planId});
+      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final activeEntitlements = _activeEntitlementKeys(info);
+      final entitlementsChanged = wasPro != isActive;
+      _log(
+        'purchase',
+        'Purchase completed',
+        data: {
+          'durationMs': durationMs,
+          'planId': planId,
+          'entitlementsChanged': entitlementsChanged,
+          'proEntitlementActive': isActive,
+          'activeEntitlements': activeEntitlements.join(','),
+          'periodType':
+              info.entitlements.all[rcEntitlementKey]?.periodType.name ??
+              'none',
+        },
+      );
+
+      if (!isActive) {
+        _log(
+          'purchase',
+          'No active entitlement after purchase',
+          data: {
+            'planId': planId,
+            'activeEntitlements': activeEntitlements.join(','),
+          },
+        );
+      }
       return true;
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       if (errorCode == PurchasesErrorCode.purchaseCancelledError) {
         Analytics.instance.logEvent('purchase.cancelled', {'plan': planId});
+        _log(
+          'purchase',
+          'Purchase cancelled by user',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+          },
+        );
         return false;
       } else if (errorCode ==
           PurchasesErrorCode.productNotAvailableForPurchaseError) {
         Analytics.instance.logEvent('purchase.product_unavailable', {
           'plan': planId,
         });
+        _log(
+          'purchase',
+          'Product unavailable during purchase',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+            'errorCode': errorCode.name,
+          },
+        );
         throw Exception('Product not available for purchase');
       } else if (errorCode == PurchasesErrorCode.paymentPendingError) {
         Analytics.instance.logEvent('purchase.payment_pending', {
           'plan': planId,
         });
+        _log(
+          'purchase',
+          'Payment pending after purchase attempt',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+          },
+        );
         return false; // Don't rethrow for pending payments
       } else {
         Analytics.instance.logEvent('purchase.error', {
@@ -10019,6 +10073,16 @@ class PurchaseService {
           'error': e.toString(),
           'code': errorCode.toString(),
         });
+        _log(
+          'purchase',
+          'Purchase failed with platform exception',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+            'error': e.toString(),
+            'code': errorCode.name,
+          },
+        );
         rethrow;
       }
     } catch (e) {
@@ -10029,6 +10093,15 @@ class PurchaseService {
           'plan': planId,
           'error': e.toString(),
         });
+        _log(
+          'purchase',
+          'Network error during purchase',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+            'error': e.toString(),
+          },
+        );
         throw Exception(
           'Network error. Please check your connection and try again.',
         );
@@ -10037,6 +10110,15 @@ class PurchaseService {
           'plan': planId,
           'error': e.toString(),
         });
+        _log(
+          'purchase',
+          'Purchase failed',
+          data: {
+            'planId': planId,
+            'durationMs': DateTime.now().difference(start).inMilliseconds,
+            'error': e.toString(),
+          },
+        );
         rethrow;
       }
     }
@@ -10045,6 +10127,13 @@ class PurchaseService {
   /// Restore purchases
   Future<CustomerInfo> restore() async {
     await Analytics.instance.logEvent('purchase.restore_start');
+    final start = DateTime.now();
+    _log(
+      'restore',
+      'Starting restorePurchases',
+      data: {'call': 'restorePurchases', 'startedAt': start.toIso8601String()},
+    );
+    final wasPro = await EntitlementsService.instance.isPro();
     try {
       final customerInfo = await Purchases.restorePurchases();
       final isActive =
@@ -10059,6 +10148,14 @@ class PurchaseService {
       await Analytics.instance.logEvent('purchase.restore_error', {
         'error': e.toString(),
       });
+      _log(
+        'restore',
+        'restorePurchases failed',
+        data: {
+          'durationMs': DateTime.now().difference(start).inMilliseconds,
+          'error': e.toString(),
+        },
+      );
       rethrow;
     }
   }
@@ -10066,18 +10163,40 @@ class PurchaseService {
   Future<void> refreshOfferings() async {
     try {
       _offerings = await Purchases.getOfferings();
+      if (_offerings == null || _offerings?.current == null) {
+        _log('offerings', 'Offerings fetched but current is null', data: {});
+      } else {
+        _log(
+          'offerings',
+          'Offerings refreshed',
+          data: {
+            'availablePackages':
+                _offerings!.current?.availablePackages.length ?? 0,
+          },
+        );
+      }
     } catch (e) {
       Analytics.instance.logEvent('purchase.offerings_error', {
         'error': e.toString(),
       });
+      _log(
+        'offerings',
+        'Failed to refresh offerings',
+        data: {'error': e.toString()},
+      );
     }
   }
 
   Future<void> ensureOfferingsLoaded() async {
     if (_offerings == null) {
       await refreshOfferings();
+      if (_offerings == null) {
+        _log('offerings', 'Offerings still null after refresh', data: {});
+      }
     }
   }
+
+  bool get hasOfferingsLoaded => _offerings != null;
 
   Package? _getPackageForPlan(PurchasePlan plan) {
     return _offerings?.current?.getPackage(plan.id);
@@ -10129,6 +10248,33 @@ class PurchaseService {
     }
 
     return 'Start with a $units $period free trial';
+  }
+
+  void _log(String action, String message, {Map<String, dynamic>? data}) {
+    final buffer = StringBuffer('$_logPrefix [$action] $message');
+    if (data != null && data.isNotEmpty) {
+      final formatted = data.entries
+          .map((entry) => '${entry.key}=${entry.value}')
+          .join(', ');
+      buffer.write(' | $formatted');
+    }
+    final text = buffer.toString();
+    if (kDebugMode) {
+      debugPrint(text);
+    } else {
+      // ignore: avoid_print
+      print(text);
+    }
+  }
+
+  List<String> _activeEntitlementKeys(CustomerInfo info) {
+    final active = info.entitlements.active;
+    if (active.isEmpty) {
+      return <String>[];
+    }
+    final keys = active.keys.toList();
+    keys.sort();
+    return keys;
   }
 }
 
@@ -10274,6 +10420,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart'; // For addPostFrameCallback
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:quotes_app/quote.dart';
 import 'package:quotes_app/models/notification_prefs.dart';
@@ -10291,6 +10438,12 @@ class NotificationService {
   static const int _baseNotificationId = 1000;
   static const int _streakNotificationId = 999;
   static const String _prefsKey = 'notif_prefs_v1';
+  static const String _recentKey = 'recent_quotes_v1';
+
+  /// Initialize timezones - must be called before any scheduling
+  static void initTimezones() {
+    tz.initializeTimeZones();
+  }
 
   static Future<void> init() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -10415,7 +10568,7 @@ class NotificationService {
     }
 
     // Schedule notifications for the next 7 days
-    int notificationCount = 0;
+    int totalScheduled = 0;
     for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
       final targetDate = now.add(Duration(days: dayOffset));
       final weekday = targetDate.weekday; // 1=Monday, 7=Sunday
@@ -10424,7 +10577,11 @@ class NotificationService {
         continue; // Skip this day
       }
 
-      for (final time in prefs.times) {
+      // Enforce per-day cap
+      int dailyScheduled = 0;
+      final sortedTimes = _sortTimes(prefs.times);
+
+      for (final time in sortedTimes) {
         final scheduledTime = _createScheduledTime(targetDate, time);
 
         // Skip if the time has already passed today
@@ -10440,7 +10597,7 @@ class NotificationService {
         );
 
         if (quote != null) {
-          final notificationId = _baseNotificationId + notificationCount;
+          final notificationId = _baseNotificationId + totalScheduled;
           await _scheduleNotification(
             notificationId,
             _getTitleForTime(time),
@@ -10449,21 +10606,22 @@ class NotificationService {
             scheduledTime,
           );
 
-          notificationCount++;
+          totalScheduled++;
+          dailyScheduled++;
 
-          // Respect daily cap
-          if (notificationCount >= prefs.dailyCap * 7) {
+          // Respect daily cap - break if we've reached the limit for this day
+          if (dailyScheduled >= prefs.dailyCap) {
             break;
           }
         }
       }
     }
 
-    debugPrint('🎯 Scheduled $notificationCount notifications over 7 days');
+    debugPrint('🎯 Scheduled $totalScheduled notifications over 7 days');
 
     // Log analytics
     Analytics.instance.logEvent(Analytics.notifScheduledTotal, {
-      'count_7d': notificationCount,
+      'count_7d': totalScheduled,
     });
 
     // Schedule streak reminder if needed
@@ -11091,100 +11249,6 @@ class ActiveFiltersBar extends StatelessWidget {
 }
 
 
-===== widgets/award_sheet.dart =====
-
-import 'package:flutter/material.dart';
-import 'package:quotes_app/services/analytics.dart';
-
-const Map<String, String> _featureDisplayNames = {
-  'search': 'Search',
-  'browse_tags': 'Browse by Tag',
-  'browse_period': 'Browse by Period',
-  'premium_themes': 'Premium Themes',
-  'premium_fonts': 'Premium Fonts',
-};
-
-class AwardSheet extends StatelessWidget {
-  final List<String> awardedFeatureKeys;
-  final VoidCallback onSeeRewards;
-  final ValueChanged<String> onTryFeature;
-
-  const AwardSheet({
-    super.key,
-    required this.awardedFeatureKeys,
-    required this.onSeeRewards,
-    required this.onTryFeature,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    Analytics.instance.logEvent('award_sheet_opened', {
-      'features': awardedFeatureKeys,
-    });
-    final bool isSingleAward = awardedFeatureKeys.length == 1;
-    final String featureName = isSingleAward
-        ? _featureDisplayNames[awardedFeatureKeys.first] ?? 'A New Feature'
-        : 'New Features';
-
-    return Container(
-      padding: const EdgeInsets.all(24.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Unlocked: $featureName for 7 days',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          if (!isSingleAward)
-            ...awardedFeatureKeys.map(
-              (key) => Text(
-                '• ${_featureDisplayNames[key] ?? key}',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          if (!isSingleAward) const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (isSingleAward) {
-                onTryFeature(awardedFeatureKeys.first);
-              } else {
-                onSeeRewards();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: Text(isSingleAward ? 'Try It' : 'See My Rewards'),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (isSingleAward) onSeeRewards();
-            },
-            child: Text(isSingleAward ? 'See My Rewards' : 'Dismiss'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
 ===== widgets/bottom_action_bar.dart =====
 
 import 'package:flutter/material.dart';
@@ -11597,7 +11661,7 @@ class _SimpleCelebrationOverlayState extends State<SimpleCelebrationOverlay>
         builder: (context, child) {
           return Opacity(
             opacity: _fadeAnimation.value,
-            child: Container(
+            child: SizedBox(
               width: double.infinity,
               height: double.infinity,
               child: Center(
@@ -12141,6 +12205,7 @@ import 'package:quotes_app/services/revenuecat_keys.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/theme/lb_theme_extension.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
+import 'package:quotes_app/utils/membership_feedback.dart';
 
 class Paywall extends StatefulWidget {
   final String contextKey;
@@ -12168,6 +12233,11 @@ class _PaywallState extends State<Paywall> {
     Analytics.instance.logEvent('paywall.view', {'context': widget.contextKey});
     Future.microtask(() async {
       await PurchaseService.instance.ensureOfferingsLoaded();
+      if (!PurchaseService.instance.hasOfferingsLoaded) {
+        debugPrint(
+          '[MembershipFlow][offerings] Offerings missing when paywall opened for ${widget.contextKey}',
+        );
+      }
       if (mounted) setState(() {});
     });
   }
@@ -12776,20 +12846,18 @@ class _PaywallState extends State<Paywall> {
         Navigator.of(
           context,
         ).pop(true); // Return true to indicate successful purchase
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Welcome to Literature Bites Pro!'),
-            backgroundColor: Colors.green,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Welcome!',
+          message: 'Welcome to Literature Bites Pro!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Purchase failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Purchase Failed',
+          message: 'Purchase failed: $e',
         );
       }
     } finally {
@@ -12812,26 +12880,26 @@ class _PaywallState extends State<Paywall> {
 
       if (mounted) {
         if (isProAfter && !isProBefore) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Purchases restored successfully.'),
-              backgroundColor: Colors.green,
-            ),
+          await MembershipFeedback.showMessage(
+            context,
+            title: 'Restore Complete',
+            message: 'Membership restored. Welcome to Literature Bites Pro!',
           );
           Navigator.of(context).pop(true); // Pop paywall on success
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No new purchases to restore.')),
+          await MembershipFeedback.showMessage(
+            context,
+            title: 'No Purchases Found',
+            message: 'No purchases to restore.',
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Restore failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        await MembershipFeedback.showMessage(
+          context,
+          title: 'Restore Failed',
+          message: 'Restore failed: $e',
         );
       }
     }
@@ -14019,77 +14087,6 @@ class QuoteCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-
-===== widgets/reward_island.dart =====
-
-import 'package:flutter/material.dart';
-
-class RewardIsland extends StatefulWidget {
-  final String featureKey;
-  final VoidCallback onDismiss;
-
-  const RewardIsland({
-    super.key,
-    required this.featureKey,
-    required this.onDismiss,
-  });
-
-  @override
-  State<RewardIsland> createState() => _RewardIslandState();
-}
-
-class _RewardIslandState extends State<RewardIsland>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _animation,
-      child: Card(
-        margin: const EdgeInsets.all(8.0),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              const Icon(Icons.star, color: Colors.amber),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'You\'ve unlocked a Pro feature for 7 days: You can now ${widget.featureKey.replaceAll('_', ' ')}!',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: widget.onDismiss,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

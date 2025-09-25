@@ -77,7 +77,7 @@ class _SimpleCelebrationOverlayState extends State<SimpleCelebrationOverlay>
         builder: (context, child) {
           return Opacity(
             opacity: _fadeAnimation.value,
-            child: Container(
+            child: SizedBox(
               width: double.infinity,
               height: double.infinity,
               child: Center(

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/quiz_models.dart';
 import 'package:quotes_app/quiz_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/srs_service.dart';
 import 'quote.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class AuthorQuizPage extends StatefulWidget {
   final List<Quote> favoriteQuotes;
@@ -33,7 +36,7 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
   }
 
   Future<void> _generateQuestion() async {
-    final dueQuoteIds = await _srsService.loadDue(DateTime.now());
+    final dueQuoteIds = await _srsService.loadDue(timeProvider.now());
     final dueQuotes = widget.favoriteQuotes
         .where((quote) => dueQuoteIds.contains(quote.id))
         .toList();
@@ -64,7 +67,7 @@ class _AuthorQuizPageState extends State<AuthorQuizPage> {
       _srsService.grade(
         _currentQuestion!.quote.id,
         correct: isCorrect,
-        today: DateTime.now(),
+        today: timeProvider.now(),
       );
     });
   }

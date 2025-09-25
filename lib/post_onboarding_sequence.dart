@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:quotes_app/widgets/paywall.dart';
 import 'package:quotes_app/utils/feature_gate.dart';
 import 'dart:async';
 
@@ -15,7 +14,7 @@ class PostOnboardingSequence extends StatefulWidget {
 class _PostOnboardingSequenceState extends State<PostOnboardingSequence> {
   bool _isProcessing = true;
   int _currentStep =
-      0; // 0: processing, 1: features, 2: paywall, 3: drawer guide
+      0; // 0: processing, 1: features, 2: paywall, 3: drawer guide, 4: like guide, 5: settings guide
 
   @override
   void initState() {
@@ -66,7 +65,11 @@ class _PostOnboardingSequenceState extends State<PostOnboardingSequence> {
       case 2:
         return PaywallIntroScreen(onFinished: _nextStep);
       case 3:
-        return DrawerGuideScreen(onFinished: _finish);
+        return DrawerGuideScreen(onFinished: _nextStep);
+      case 4:
+        return LikeGuideScreen(onFinished: _nextStep);
+      case 5:
+        return SettingsGuideScreen(onFinished: _finish);
       default:
         return FeatureOverviewScreen(onFinished: _finish);
     }
@@ -427,6 +430,213 @@ class DrawerGuideScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LikeGuideScreen extends StatelessWidget {
+  final VoidCallback onFinished;
+
+  const LikeGuideScreen({super.key, required this.onFinished});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.8),
+      body: Stack(
+        children: [
+          // Highlight center area (where the quote card sits) to suggest double-tap
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.8,
+              height: MediaQuery.of(context).size.height * 0.35,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.pinkAccent.withOpacity(0.35),
+                    blurRadius: 24,
+                    spreadRadius: 6,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.favorite, size: 48, color: Colors.pink),
+            ),
+          ),
+
+          // Guide text
+          Positioned(
+            bottom: MediaQuery.of(context).size.height * 0.18,
+            left: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text(
+                    'Double‑tap to Like',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontFamily: 'EBGaramond',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'Double tap a quote to like it. The more you like, the better your recommendations. Really love a quote? Keep double‑tapping to show it extra love.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontFamily: 'EBGaramond',
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            bottom: 32,
+            right: 24,
+            child: ElevatedButton(
+              onPressed: onFinished,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text(
+                'Got it!',
+                style: TextStyle(
+                  fontFamily: 'EBGaramond',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsGuideScreen extends StatelessWidget {
+  final VoidCallback onFinished;
+
+  const SettingsGuideScreen({super.key, required this.onFinished});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.8),
+      body: Stack(
+        children: [
+          // Highlight top-right settings icon area
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 8,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueAccent.withOpacity(0.35),
+                    blurRadius: 24,
+                    spreadRadius: 6,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.settings, color: Colors.black),
+            ),
+          ),
+
+          // Guide text
+          Positioned(
+            top: MediaQuery.of(context).size.height * 0.2,
+            left: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text(
+                    'Customize in Settings',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontFamily: 'EBGaramond',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'Customise theme and typography, and manage notifications from the Settings button.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontFamily: 'EBGaramond',
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            bottom: 32,
+            right: 24,
+            child: ElevatedButton(
+              onPressed: onFinished,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text(
+                'Let’s go',
+                style: TextStyle(
+                  fontFamily: 'EBGaramond',
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

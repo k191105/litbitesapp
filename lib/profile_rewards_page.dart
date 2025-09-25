@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/services/rewards_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/info_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 import 'package:url_launcher/url_launcher.dart';
 import 'package:quotes_app/services/purchase_service.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
@@ -28,8 +31,8 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
   int _favoriteQuotesCount = 0;
   List<Quote> _allQuotes = [];
   List<Quote> _favoriteQuotes = [];
-  Map<String, int> _viewCounts = {};
-  Map<String, int> _likeCounts = {};
+  final Map<String, int> _viewCounts = {};
+  final Map<String, int> _likeCounts = {};
   bool _isRestoring = false;
   bool _isRefreshing = false;
 
@@ -40,6 +43,17 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
     super.initState();
     _loadData();
     Analytics.instance.logEvent('profile.opened');
+    EntitlementsService.instance.addListener(_onEntitlementsChanged);
+  }
+
+  @override
+  void dispose() {
+    EntitlementsService.instance.removeListener(_onEntitlementsChanged);
+    super.dispose();
+  }
+
+  void _onEntitlementsChanged() {
+    _loadData();
   }
 
   void _loadData() {
@@ -356,7 +370,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
             itemBuilder: (context, index) {
               final pass = passes[index];
               return Container(
-                width: 180,
+                width: 200,
                 margin: const EdgeInsets.only(right: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -386,17 +400,18 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
                         color: Colors.white70,
                       ),
                     ),
-                    TextButton(
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white70),
+                      ),
                       onPressed: () {
                         Analytics.instance.logEvent('profile.active_pass_try', {
                           'feature': pass.featureKey,
                         });
                         _navigateToFeature(pass.featureKey);
                       },
-                      child: const Text(
-                        'Try',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      child: const Text('Try'),
                     ),
                   ],
                 ),
@@ -452,7 +467,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: 1 - (nextPass.daysRemaining / 7),
+            value: 1 - (nextPass.daysRemaining / 3.0),
             backgroundColor: Colors.grey.shade300,
             valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
           ),
@@ -518,7 +533,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilledButton(
+        TextButton(
           onPressed: _isRestoring ? null : _handleRestore,
           child: _isRestoring
               ? _buildButtonSpinner(theme)
@@ -533,7 +548,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
           },
           child: const Text('Manage Subscription'),
         ),
-        FilledButton(
+        TextButton(
           onPressed: _isRefreshing ? null : _handleRefresh,
           child: _isRefreshing
               ? _buildButtonSpinner(theme)
@@ -549,7 +564,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       _isRestoring = true;
     });
     Analytics.instance.logEvent('profile.restore');
-    final start = DateTime.now();
+    final start = timeProvider.now();
     final isProBefore = await EntitlementsService.instance.isPro();
     debugPrint(
       '[MembershipFlow][restore] Restore started at ${start.toIso8601String()}',
@@ -562,7 +577,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       if (!mounted) return;
 
       final restored = isProAfter && !isProBefore;
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       debugPrint(
         '[MembershipFlow][restore] Completed in ${durationMs}ms | restored=$restored | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
       );
@@ -575,7 +590,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       );
       _loadData();
     } catch (e) {
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       debugPrint(
         '[MembershipFlow][restore] Failed in ${durationMs}ms | error=$e',
       );
@@ -600,7 +615,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       _isRefreshing = true;
     });
     Analytics.instance.logEvent('profile.refresh_membership');
-    final start = DateTime.now();
+    final start = timeProvider.now();
     final isProBefore = await EntitlementsService.instance.isPro();
     debugPrint(
       '[MembershipFlow][refresh] Refresh started at ${start.toIso8601String()}',
@@ -615,7 +630,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       if (!mounted) return;
 
       final gainedPro = isProAfter && !isProBefore;
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       debugPrint(
         '[MembershipFlow][refresh] Completed in ${durationMs}ms | gainedPro=$gainedPro | activeEntitlements=${customerInfo.entitlements.active.keys.join(',')}',
       );
@@ -628,7 +643,7 @@ class _ProfileRewardsPageState extends State<ProfileRewardsPage> {
       );
       _loadData();
     } catch (e) {
-      final durationMs = DateTime.now().difference(start).inMilliseconds;
+      final durationMs = timeProvider.now().difference(start).inMilliseconds;
       debugPrint(
         '[MembershipFlow][refresh] Failed in ${durationMs}ms | error=$e',
       );

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/srs_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/quote.dart';
 import 'package:quotes_app/learn/flashcard.dart';
 import 'package:quotes_app/services/analytics.dart';
 import 'package:quotes_app/utils/feature_gate.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 
 class SrsSessionScreen extends StatefulWidget {
   final List<Quote> allQuotes;
@@ -34,8 +37,8 @@ class _SrsSessionScreenState extends State<SrsSessionScreen> {
   }
 
   Future<void> _loadDueQuotes() async {
-    final dueQuoteIds = await _srsService.loadDue(DateTime.now());
-    final canReviewMore = await _srsService.canReviewMore(DateTime.now());
+    final dueQuoteIds = await _srsService.loadDue(timeProvider.now());
+    final canReviewMore = await _srsService.canReviewMore(timeProvider.now());
     setState(() {
       _dueQuoteIds = dueQuoteIds;
       _capReached = !canReviewMore;
@@ -105,7 +108,11 @@ class _SrsSessionScreenState extends State<SrsSessionScreen> {
     return Flashcard(
       quote: quote,
       onAnswer: (correct) {
-        _srsService.grade(quote.id, correct: correct, today: DateTime.now());
+        _srsService.grade(
+          quote.id,
+          correct: correct,
+          today: timeProvider.now(),
+        );
         setState(() {
           _reviewsToday++;
         });

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:quotes_app/quiz_models.dart';
 import 'package:quotes_app/quiz_service.dart';
+import 'package:quotes_app/services/time_provider.dart';
 import 'package:quotes_app/quote.dart';
 import 'srs_service.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lottie/lottie.dart';
 
@@ -35,7 +38,7 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void initState() {
     super.initState();
-    final sessionSeed = DateTime.now().millisecondsSinceEpoch;
+    final sessionSeed = timeProvider.now().millisecondsSinceEpoch;
     _quizService = QuizService(sessionSeed: sessionSeed);
     _startQuiz();
   }
@@ -323,8 +326,8 @@ class _QuizPageState extends State<QuizPage> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.onBackground,
-                foregroundColor: Theme.of(context).colorScheme.background,
+                backgroundColor: Theme.of(context).colorScheme.onSurface,
+                foregroundColor: Theme.of(context).colorScheme.surface,
                 minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: _nextQuestion,
@@ -355,7 +358,7 @@ class _QuizPageState extends State<QuizPage> {
       _srsService.grade(
         question.quote.id,
         correct: isCorrect,
-        today: DateTime.now(),
+        today: timeProvider.now(),
       );
     });
   }

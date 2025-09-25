@@ -3,15 +3,18 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:quotes_app/recommendation_service.dart';
-import 'package:flutter/rendering.dart';
 import 'onboarding_page.dart';
 import 'post_onboarding_sequence.dart';
 import 'info_card.dart';
 import 'services/notification_service.dart';
 import 'services/streak_service.dart';
-import 'widgets/streak_island.dart';
+import 'services/time_provider.dart';
+import 'services/debug_hooks.dart';
 import 'widgets/milestone_celebration.dart';
 import 'widgets/quote_card.dart';
+import 'widgets/reward_island.dart';
+
+// TODO: TimeProvider refactor - DateTime.now() calls replaced with timeProvider.now()
 import 'widgets/details_card.dart';
 import 'widgets/bottom_action_bar.dart';
 import 'widgets/details_popup.dart';
@@ -19,12 +22,10 @@ import 'widgets/tag_chip.dart';
 import 'widgets/author_chip.dart';
 import 'utils/share_quote.dart';
 import 'models/period_catalog.dart';
-import 'utils/system_ui.dart';
 import 'widgets/active_filters_bar.dart';
 import 'widgets/settings_sheet.dart';
+import 'widgets/streak_island.dart';
 import 'package:quotes_app/services/entitlements_service.dart';
-import 'package:quotes_app/widgets/reward_island.dart';
-import 'package:quotes_app/widgets/tip_island.dart';
 import 'quote.dart';
 import 'quote_service.dart';
 import 'browse_hub.dart';
@@ -35,7 +36,8 @@ import 'profile_rewards_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'srs_service.dart';
 import 'package:quotes_app/services/purchase_service.dart';
-import 'package:quotes_app/services/revenuecat_keys.dart';
+import 'services/theme_controller.dart';
+import 'theme/theme_registry.dart';
 
 class _InfoCardModel {
   final String id;
@@ -61,8 +63,8 @@ class QuoteAppState extends State<QuoteApp>
 
   Map<String, dynamic>? _streakIslandData;
   String? _celebrationType; // 'confetti' or 'fireworks'
-  String? _awardedFeatureKey;
-  String? _activeTip;
+  List<String> _awardedFeatureKeys = [];
+  bool _shouldShowRewardIsland = false;
 
   List<Quote> _quotes = [];
   List<Quote> _allQuotes = [];
@@ -90,6 +92,8 @@ class QuoteAppState extends State<QuoteApp>
   @override
   void initState() {
     super.initState();
+    // Wire debug hook so debug FAB can invoke app's daily pipelines
+    DebugHooks.onAdvanceDay = _runNewDayPipelines;
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     _detailsScrollController = ScrollController();
@@ -113,13 +117,45 @@ class QuoteAppState extends State<QuoteApp>
     });
     _loadQuotes();
     _handleAppLaunch();
+
+    // Entitlements are already configuring, but we can sync again to be sure
+    // and redraw the UI if needed when it completes.
+    PurchaseService.instance.syncEntitlementFromRC().then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      EntitlementsService.instance.clearExpiredPasses().then((_) {
-        // A simple way to refresh any UI that depends on entitlements
+      EntitlementsService.instance.clearExpiredPasses().then((_) async {
+        // Rollback gated selections if passes expired
+        final isPremiumThemesAllowed = await EntitlementsService.instance
+            .isFeatureActive(EntitlementsService.premiumThemes);
+        final isPremiumFontsAllowed = await EntitlementsService.instance
+            .isFeatureActive(EntitlementsService.premiumFonts);
+        if (!isPremiumThemesAllowed) {
+          await ThemeController.instance.revertToLastFreeTheme();
+        }
+        if (!isPremiumFontsAllowed) {
+          ThemeController.instance.setFont(garamondFontId);
+        }
+        final authorAllowed = await EntitlementsService.instance
+            .isFeatureActive(EntitlementsService.browseAuthor);
+        final periodAllowed = await EntitlementsService.instance
+            .isFeatureActive(EntitlementsService.browsePeriod);
+        if (!authorAllowed) {
+          setState(() {
+            _selectedAuthors.clear();
+          });
+        }
+        if (!periodAllowed) {
+          setState(() {
+            _periodFilter = null;
+          });
+        }
         setState(() {});
       });
 
@@ -138,7 +174,7 @@ class QuoteAppState extends State<QuoteApp>
     final prefs = await NotificationService.loadNotificationPrefs();
     await NotificationService.syncWithPrefs(
       prefs,
-      DateTime.now(),
+      timeProvider.now(),
       feed: _allQuotes,
       favoriteQuotes: _favoriteQuotes,
     );
@@ -162,6 +198,8 @@ class QuoteAppState extends State<QuoteApp>
           'weeklyView': weeklyView,
         };
         _celebrationType = celebrationType;
+        _awardedFeatureKeys = awardedFeatureKeys;
+        _shouldShowRewardIsland = false; // Reset on new streak event
       });
 
       // Show celebration overlay if applicable
@@ -179,26 +217,42 @@ class QuoteAppState extends State<QuoteApp>
     }
   }
 
+  /// Runs the same flows we expect on a new day (debug call-in)
+  Future<void> _runNewDayPipelines() async {
+    await _syncNotifications();
+    await _handleAppLaunch();
+    await EntitlementsService.instance.clearExpiredPasses();
+    // Same rollback logic as resume
+    final isPremiumThemesAllowed = await EntitlementsService.instance
+        .isFeatureActive(EntitlementsService.premiumThemes);
+    final isPremiumFontsAllowed = await EntitlementsService.instance
+        .isFeatureActive(EntitlementsService.premiumFonts);
+    if (!isPremiumThemesAllowed) {
+      await ThemeController.instance.revertToLastFreeTheme();
+    }
+    if (!isPremiumFontsAllowed) {
+      ThemeController.instance.setFont(garamondFontId);
+    }
+    final authorAllowed = await EntitlementsService.instance.isFeatureActive(
+      EntitlementsService.browseAuthor,
+    );
+    final periodAllowed = await EntitlementsService.instance.isFeatureActive(
+      EntitlementsService.browsePeriod,
+    );
+    if (!authorAllowed) {
+      _selectedAuthors.clear();
+    }
+    if (!periodAllowed) {
+      _periodFilter = null;
+    }
+    if (mounted) setState(() {});
+  }
+
   void _showCelebrationOverlay(List<String> awardedFeatureKeys) {
     if (_celebrationType == null) return;
 
     setState(() {
       // The overlay will be shown in the UI build method
-    });
-
-    // Auto-hide after 3 seconds
-    Future.delayed(const Duration(milliseconds: 3000), () {
-      if (mounted) {
-        setState(() {
-          _celebrationType = null;
-        });
-        // After celebration, if there are awards, show the award sheet.
-        if (awardedFeatureKeys.isNotEmpty) {
-          setState(() {
-            _awardedFeatureKey = awardedFeatureKeys.first;
-          });
-        }
-      }
     });
   }
 
@@ -206,6 +260,9 @@ class QuoteAppState extends State<QuoteApp>
 
   @override
   void dispose() {
+    if (DebugHooks.onAdvanceDay == _runNewDayPipelines) {
+      DebugHooks.onAdvanceDay = null;
+    }
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _detailsScrollController.dispose();
@@ -271,7 +328,7 @@ class QuoteAppState extends State<QuoteApp>
       NotificationService.scheduleForToday(
         feed: _quotes,
         favoriteQuotes: _favoriteQuotes,
-        now: DateTime.now(),
+        now: timeProvider.now(),
       );
       await _showOnboardingIfNeeded();
     } catch (e) {
@@ -516,7 +573,7 @@ class QuoteAppState extends State<QuoteApp>
 
   void _applyFilters() {
     setState(() {
-      final sessionSeed = DateTime.now().millisecondsSinceEpoch;
+      final sessionSeed = timeProvider.now().millisecondsSinceEpoch;
       List<Quote> baseQuotes;
       if (_isFavoritesMode) {
         baseQuotes = _favoriteQuotes;
@@ -730,7 +787,6 @@ class QuoteAppState extends State<QuoteApp>
   @override
   Widget build(BuildContext context) {
     // Sync the system status bar with our app bar background to avoid the lavender tint on iOS
-    setSystemUIOverlayStyle(Theme.of(context).brightness == Brightness.dark);
 
     if (_isLoading) {
       return Scaffold(
@@ -808,7 +864,6 @@ class QuoteAppState extends State<QuoteApp>
                               if (!_seenQuoteIds.contains(quoteId)) {
                                 _seenQuoteIds.add(quoteId);
                                 _updatePageViewItems();
-                                _checkForTips();
                               }
                             });
                           }
@@ -964,44 +1019,66 @@ class QuoteAppState extends State<QuoteApp>
               left: 0,
               right: 0,
               child: SafeArea(
-                bottom: false, // Don't apply SafeArea to bottom
-                child: Column(
-                  children: [
-                    if (_streakIslandData != null)
-                      StreakIsland(
-                        streakMessage: _streakIslandData!['message'] as String,
-                        weeklyView:
-                            _streakIslandData!['weeklyView']
-                                as List<Map<String, dynamic>>,
-                        onTap: () {
-                          // Optional: Show streak history or details
-                        },
-                        onDismiss: () {
-                          setState(() {
-                            _streakIslandData = null;
-                          });
-                        },
-                      ),
-                    if (_awardedFeatureKey != null)
-                      RewardIsland(
-                        featureKey: _awardedFeatureKey!,
-                        onDismiss: () {
-                          setState(() {
-                            _awardedFeatureKey = null;
-                          });
-                        },
-                      ),
-                    if (_activeTip != null)
-                      TipIsland(
-                        message: _getTipMessage(_activeTip!),
-                        icon: _getTipIcon(_activeTip!),
-                        onDismiss: () {
-                          setState(() {
-                            _activeTip = null;
-                          });
-                        },
-                      ),
-                  ],
+                bottom: false,
+                child: StreakIsland(
+                  streakMessage: _streakIslandData!['message'] as String,
+                  weeklyView:
+                      _streakIslandData!['weeklyView']
+                          as List<Map<String, dynamic>>,
+                  onDismiss: () {
+                    setState(() {
+                      _streakIslandData = null;
+                    });
+                  },
+                ),
+              ),
+            ),
+
+          // Reward Island Overlay
+          if (_shouldShowRewardIsland && _awardedFeatureKeys.isNotEmpty)
+            Positioned(
+              top: (_streakIslandData != null) ? 120 : 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: RewardIsland(
+                  featureKey: _awardedFeatureKeys.first,
+                  featureName:
+                      EntitlementsService
+                          .proFeatureDisplayNames[_awardedFeatureKeys.first] ??
+                      _awardedFeatureKeys.first,
+                  onTry: () {
+                    final key = _awardedFeatureKeys.first;
+                    // Navigate to the appropriate feature
+                    if (key == EntitlementsService.browseAuthor ||
+                        key == EntitlementsService.browsePeriod) {
+                      _navigateToBrowse();
+                    } else if (key == EntitlementsService.srsUnlimited ||
+                        key == EntitlementsService.learnTrainer) {
+                      _navigateToLearn();
+                    } else {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => FractionallySizedBox(
+                          heightFactor: 0.75,
+                          child: SettingsSheet(
+                            allQuotes: _allQuotes,
+                            favoriteQuotes: _favoriteQuotes,
+                            viewCounts: _viewCounts,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  onDismiss: () {
+                    setState(() {
+                      _awardedFeatureKeys.clear();
+                      _shouldShowRewardIsland = false;
+                    });
+                  },
                 ),
               ),
             ),
@@ -1014,6 +1091,9 @@ class QuoteAppState extends State<QuoteApp>
                 onComplete: () {
                   setState(() {
                     _celebrationType = null;
+                    if (_awardedFeatureKeys.isNotEmpty) {
+                      _shouldShowRewardIsland = true;
+                    }
                   });
                 },
               ),
@@ -1084,47 +1164,6 @@ class QuoteAppState extends State<QuoteApp>
   Future<void> _saveInfoCardIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('infoCardIds', _infoCardIds.toList());
-  }
-
-  void _checkForTips() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shownTips = prefs.getStringList('shownTips') ?? [];
-
-    if (_favoriteQuotes.isNotEmpty) {
-      return;
-    }
-
-    final milestones = [5, 15, 30];
-    for (var milestone in milestones) {
-      if (_seenQuoteIds.length == milestone &&
-          !shownTips.contains('double_tap_$milestone')) {
-        setState(() {
-          _activeTip = 'double_tap';
-        });
-
-        shownTips.add('double_tap_$milestone');
-        await prefs.setStringList('shownTips', shownTips);
-        break;
-      }
-    }
-  }
-
-  String _getTipMessage(String tipKey) {
-    switch (tipKey) {
-      case 'double_tap':
-        return 'Double-tap any quote to add it to your favorites!';
-      default:
-        return 'Tip: Explore the app to discover more features!';
-    }
-  }
-
-  IconData _getTipIcon(String tipKey) {
-    switch (tipKey) {
-      case 'double_tap':
-        return Icons.favorite_border;
-      default:
-        return Icons.lightbulb_outline;
-    }
   }
 
   Widget _buildInfoCard() {

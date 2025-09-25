@@ -265,16 +265,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
             isSelected: _previewThemeId == entry.value,
             isPremium: isPremium,
             featureKey: 'premium_themes',
-            onTap: () {
-              if (isPremium && !_isPro) {
-                _openPaywall('settings_theme');
-                return;
-              }
+            onTap: () async {
               setState(() {
                 _previewThemeId = entry.value;
               });
 
-              // For free themes, apply directly without feature gate
               if (!isPremium) {
                 ThemeController.instance.setTheme(entry.value);
                 Analytics.instance.logEvent('settings.theme_selected', {
@@ -283,7 +278,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 return;
               }
 
-              // For premium themes, check feature access
+              // For premium themes, respect active passes as well as Pro
               requireFeature(
                 context,
                 'premium_themes',
@@ -330,16 +325,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
             isSelected: _previewFontId == entry.value,
             isPremium: isPremium,
             featureKey: 'premium_fonts',
-            onTap: () {
-              if (isPremium && !_isPro) {
-                _openPaywall('settings_font');
-                return;
-              }
+            onTap: () async {
               setState(() {
                 _previewFontId = entry.value;
               });
 
-              // For free fonts, apply directly without feature gate
               if (!isPremium) {
                 ThemeController.instance.setFont(entry.value);
                 Analytics.instance.logEvent('settings.font_selected', {
@@ -348,7 +338,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 return;
               }
 
-              // For premium fonts, check feature access
+              // For premium fonts, respect active passes as well as Pro
               requireFeature(
                 context,
                 'premium_fonts',

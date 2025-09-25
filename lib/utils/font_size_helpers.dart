@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 double getFontSize(String text) {
   if (text.length > 300) return 20.0;
   if (text.length > 200) return 22.0;

@@ -54,9 +54,14 @@ class RewardsService {
   }
 
   List<String> _getFeaturesForMilestone(int milestone) {
-    // Cycle through the pro features list for rewards
-    final rewardableFeatures = EntitlementsService.proFeatureDisplayNames.keys
-        .toList();
+    // Only include rewardable features that actually unlock user-facing UX
+    const rewardableFeatures = <String>[
+      EntitlementsService.browseAuthor,
+      EntitlementsService.browsePeriod,
+      EntitlementsService.premiumThemes,
+      EntitlementsService.premiumFonts,
+      EntitlementsService.learnTrainer,
+    ];
     final cycleIndex =
         ((milestone / 3) - 1).floor() % rewardableFeatures.length;
     return [rewardableFeatures[cycleIndex]];

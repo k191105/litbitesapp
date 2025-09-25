@@ -77,7 +77,7 @@ class Quote {
       result += ' (';
       result += authorBirth.toString();
       if (authorDeath != null) {
-        result += '–${authorDeath}';
+        result += '–$authorDeath';
       } else {
         result += '–';
       }
